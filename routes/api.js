@@ -9,31 +9,31 @@ const { authenticateToken, requireRole, validateRequest } = require('./auth');
 
 // --- User Management (any authenticated user) ---
 
-// GET all users
-router.get(
-  '/users',
-  [ authenticateToken ],
-  async (req, res) => {
-    try {
-      const { rows } = await db.query(
-        `SELECT
-           username
-         FROM users
-         ORDER BY created_at DESC`
-      );
-      res.json(rows);
-    } catch (error) {
-      console.error('Get Users Error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
+// GET all users (no auth)
+router.get('/users', async (req, res) => {
+  try {
+    const { rows } = await db.query(
+      `SELECT
+         id,
+         username,
+         role,
+         first_name AS "firstName",
+         last_name AS "lastName",
+         created_at AS "createdAt"
+       FROM users
+       ORDER BY created_at DESC`
+    );
+    res.json(rows);
+  } catch (error) {
+    console.error('Get Users Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
-);
+});
 
-// POST create a new user
+// POST create a new user (no auth)
 router.post(
   '/users',
   [
-    authenticateToken,
     body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
     body('firstName').notEmpty().withMessage('First name is required'),
