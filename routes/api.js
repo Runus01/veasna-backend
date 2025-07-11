@@ -7,7 +7,67 @@ const { body } = require('express-validator');
 const db = require('../config/db');
 const { authenticateToken, requireRole, validateRequest } = require('./auth');
 
-// --- User Authentication ---
+// --- User Management (any authenticated user) ---
+
+// GET all users
+router.get(
+  '/users',
+  [ authenticateToken ],
+  async (req, res) => {
+    try {
+      const { rows } = await db.query(
+        `SELECT
+           username
+         FROM users
+         ORDER BY created_at DESC`
+      );
+      res.json(rows);
+    } catch (error) {
+      console.error('Get Users Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+);
+
+// POST create a new user
+router.post(
+  '/users',
+  [
+    authenticateToken,
+    body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+    body('firstName').notEmpty().withMessage('First name is required'),
+    body('lastName').notEmpty().withMessage('Last name is required'),
+    body('role').isIn(['admin', 'doctor', 'nurse']).withMessage('Invalid role')
+  ],
+  validateRequest,
+  async (req, res) => {
+    const { firstName, lastName, username, password, role } = req.body;
+    try {
+      const hashedPassword = await db.hashPassword(password);
+      const query = `
+        INSERT INTO users(username, password_hash, role, first_name, last_name)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING
+          id,
+          username,
+          role,
+          first_name AS "firstName",
+          last_name AS "lastName",
+          created_at AS "createdAt";
+      `;
+      const values = [username, hashedPassword, role, firstName, lastName];
+      const { rows } = await db.query(query, values);
+      res.status(201).json({ message: 'User created successfully', user: rows[0] });
+    } catch (error) {
+      console.error('Create User Error:', error);
+      if (error.code === '23505') {
+        return res.status(409).json({ message: 'Username already exists.' });
+      }
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+);
 
 // User Sign Up
 router.post('/signup', [
