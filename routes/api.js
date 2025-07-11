@@ -14,12 +14,7 @@ router.get('/users', async (req, res) => {
   try {
     const { rows } = await db.query(
       `SELECT
-         id,
-         username,
-         role,
-         first_name AS "firstName",
-         last_name AS "lastName",
-         created_at AS "createdAt"
+         username
        FROM users
        ORDER BY created_at DESC`
     );
