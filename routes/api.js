@@ -30,28 +30,19 @@ router.post(
   '/users',
   [
     body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-    body('firstName').notEmpty().withMessage('First name is required'),
-    body('lastName').notEmpty().withMessage('Last name is required'),
-    body('role').isIn(['admin', 'doctor', 'nurse']).withMessage('Invalid role')
   ],
   validateRequest,
   async (req, res) => {
-    const { firstName, lastName, username, password, role } = req.body;
+    const {username} = req.body;
     try {
-      const hashedPassword = await db.hashPassword(password);
       const query = `
-        INSERT INTO users(username, password_hash, role, first_name, last_name)
-        VALUES ($1, $2, $3, $4, $5)
+        INSERT INTO users(username）
+        VALUES ($1)
         RETURNING
           id,
           username,
-          role,
-          first_name AS "firstName",
-          last_name AS "lastName",
-          created_at AS "createdAt";
       `;
-      const values = [username, hashedPassword, role, firstName, lastName];
+      const values = [username];
       const { rows } = await db.query(query, values);
       res.status(201).json({ message: 'User created successfully', user: rows[0] });
     } catch (error) {
