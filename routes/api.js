@@ -33,14 +33,12 @@ router.post(
   ],
   validateRequest,
   async (req, res) => {
-    const {username} = req.body;
+    const { username } = req.body;
     try {
       const query = `
-        INSERT INTO users(username）
+        INSERT INTO users(username)
         VALUES ($1)
-        RETURNING
-          id,
-          username,
+        RETURNING id, username;
       `;
       const values = [username];
       const { rows } = await db.query(query, values);
@@ -54,78 +52,6 @@ router.post(
     }
   }
 );
-
-// User Sign Up
-router.post('/signup', [
-  body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
-  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('firstName').notEmpty().withMessage('First name is required'),
-  body('lastName').notEmpty().withMessage('Last name is required'),
-  body('role').isIn(['admin', 'doctor', 'nurse']).withMessage('Invalid role')
-], validateRequest, async (req, res) => {
-  const { firstName, lastName, username, password, role } = req.body;
-  try {
-    const hashedPassword = await db.hashPassword(password);
-    const query = `
-      INSERT INTO users(first_name, last_name, username, password_hash, role)
-      VALUES($1, $2, $3, $4, $5)
-      RETURNING id, username, role, first_name, last_name;
-    `;
-    const values = [firstName, lastName, username, hashedPassword, role];
-    const { rows } = await db.query(query, values);
-    const user = rows[0];
-    const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-    res.status(201).json({ message: 'User created successfully', user, token });
-  } catch (error) {
-    console.error('Signup Error:', error);
-    if (error.code === '23505') return res.status(409).json({ message: 'Username already exists.' });
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// User Login
-router.post('/login', [
-  body('username').notEmpty().withMessage('Username is required'),
-  body('password').notEmpty().withMessage('Password is required')
-], validateRequest, async (req, res) => {
-  const { username, password } = req.body;
-  try {
-    const { rows } = await db.query('SELECT * FROM users WHERE username = $1', [username]);
-    if (!rows.length) return res.status(401).json({ message: 'Invalid credentials' });
-    const user = rows[0];
-    const isValid = await db.comparePassword(password, user.password_hash);
-    if (!isValid) return res.status(401).json({ message: 'Invalid credentials' });
-    const token = jwt.sign(
-      { id: user.id, username: user.username, role: user.role },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    );
-    const { password_hash, ...userSafe } = user;
-    res.json({ message: 'Login successful', user: userSafe, token });
-  } catch (error) {
-    console.error('Login Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
-
-// Get current user profile
-router.get('/profile', authenticateToken, async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      'SELECT id, username, role, first_name, last_name, created_at FROM users WHERE id = $1',
-      [req.user.id]
-    );
-    if (!rows.length) return res.status(404).json({ message: 'User not found' });
-    res.json(rows[0]);
-  } catch (error) {
-    console.error('Get Profile Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
 
 // --- Patient Management ---
 
