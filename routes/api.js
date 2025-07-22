@@ -2,6 +2,15 @@
 
 const express = require('express');
 const router = express.Router();
+
+const patientRoutes = require('./patients');
+const locationRoutes = require('./locations');
+
+router.use('/patients', patientRoutes);
+router.use('/locations', locationRoutes);
+
+module.exports = router;
+
 const jwt = require('jsonwebtoken');
 const { body } = require('express-validator');
 const db = require('../config/db');
@@ -408,6 +417,50 @@ router.get('/patients/:id/physiotherapy', [authenticateToken, requireRole(['admi
     res.json(rows);
   } catch (error) {
     console.error('Get Physiotherapy Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// --- Locations Management ---
+
+// Get all distinct locations from patient addresses
+router.get('/locations', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await db.query(`
+      SELECT DISTINCT location
+      FROM patients
+      WHERE location IS NOT NULL
+      ORDER BY location
+    `);
+    const locations = rows.map(r => r.location);
+    res.json({ locations });
+  } catch (error) {
+    console.error('Get Locations Error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+// Get patients filtered by location
+router.get('/patients', [
+  authenticateToken,
+  requireRole(['admin', 'doctor', 'nurse'])
+], async (req, res) => {
+  try {
+    const { location } = req.query;
+    let queryText = 'SELECT * FROM patients';
+    let values = [];
+
+    if (location) {
+      queryText += ' WHERE location = $1';
+      values.push(location);
+    }
+
+    queryText += ' ORDER BY created_at DESC';
+
+    const { rows } = await db.query(queryText, values);
+    res.json(rows);
+  } catch (error) {
+    console.error('Get Patients Error:', error);
     res.status(500).json({ message: 'Internal server error' });
   }
 });

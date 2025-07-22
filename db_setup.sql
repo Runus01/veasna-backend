@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS patients (
     sex VARCHAR(10),
     phone_number VARCHAR(50),
     address TEXT,
+    location VARCHAR(100) NOT NULL CHECK (location IN ('Poipet', 'Mongkol Borey', 'Sisophon')),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
