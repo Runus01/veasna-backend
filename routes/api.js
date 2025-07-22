@@ -2,6 +2,15 @@
 
 const express = require('express');
 const router = express.Router();
+
+const patientRoutes = require('./patients');
+const locationRoutes = require('./locations');
+
+router.use('/patients', patientRoutes);
+router.use('/locations', locationRoutes);
+
+module.exports = router;
+
 const jwt = require('jsonwebtoken');
 const { body } = require('express-validator');
 const db = require('../config/db');
