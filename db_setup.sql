@@ -1,6 +1,21 @@
 -- db_setup.sql
 -- Run this script in your PostgreSQL database to create the necessary tables.
 
+-- Locations Table
+CREATE TABLE IF NOT EXISTS locations (
+  id SERIAL PRIMARY KEY,
+  name TEXT UNIQUE NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Seed (idempotent)
+INSERT INTO locations(name) VALUES
+  ('Poipet'),
+  ('Mongkol Borey'),
+  ('Sisophon')
+ON CONFLICT (name) DO NOTHING;
+
 -- Users Table for staff login
 CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
@@ -17,7 +32,8 @@ CREATE TABLE IF NOT EXISTS patients (
     sex VARCHAR(10),
     phone_number VARCHAR(50),
     address TEXT,
-    location VARCHAR(100) NOT NULL CHECK (location IN ('Poipet', 'Mongkol Borey', 'Sisophon')),
+    location_id INTEGER NOT NULL REFERENCES locations(id),
+    queue_no TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -121,3 +137,18 @@ CREATE TABLE IF NOT EXISTS physiotherapy (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Visits / Queue numbers (temporary per-day per-location)
+CREATE TABLE IF NOT EXISTS visits (
+    id SERIAL PRIMARY KEY,
+    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+    location_id INTEGER NOT NULL REFERENCES locations(id),
+    visit_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    queue_no TEXT NOT NULL,
+    status TEXT DEFAULT 'waiting',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (location_id, visit_date, queue_no)
+);
+
+-- Check for valid queue numbers (digits + optional uppercase letters)
+ALTER TABLE patients ADD CONSTRAINT patients_queue_no_chk CHECK (queue_no ~ '^[0-9]+[A-Z]*$');
+ALTER TABLE visits   ADD CONSTRAINT visits_queue_no_chk   CHECK (queue_no ~ '^[0-9]+[A-Z]*$');
