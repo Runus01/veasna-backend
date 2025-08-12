@@ -2,20 +2,31 @@
 
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db');
+const db = require('../config/db');
 const { authenticateToken, requireRole } = require('../routes/auth');
 
-router.get('/', authenticateToken, requireRole(['admin', 'doctor', 'nurse']), async (req, res) => {
-  const { location } = req.query;
+router.get('/', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { location_id, location } = req.query;
 
   try {
-    const queryText = location
-      ? 'SELECT * FROM patients WHERE address ILIKE $1'
-      : 'SELECT * FROM patients';
+    let queryText = `
+      SELECT p.*, l.name AS location_name
+      FROM patients p
+      JOIN locations l ON l.id = p.location_id
+    `;
+    const values = [];
 
-    const values = location ? [`%${location}%`] : [];
+    if (location_id) {
+      queryText += ' WHERE p.location_id = $1';
+      values.push(Number(location_id));
+    } else if (location) {
+      queryText += ' WHERE LOWER(l.name) = LOWER($1)';
+      values.push(location);
+    }
 
-    const result = await pool.query(queryText, values);
+    queryText += ' ORDER BY p.created_at DESC';
+
+    const result = await db.query(queryText, values);
     res.status(200).json(result.rows);
   } catch (err) {
     console.error('Error fetching patients:', err);

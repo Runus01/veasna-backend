@@ -1,17 +1,19 @@
 # Veasna Clinical Management System - Backend
 
-A secure Node.js/Express backend API for managing clinical patient data with authentication, role-based access control, and comprehensive patient management features.
+A Node.js/Express backend API for managing clinical patient data, optimized for health screenings (public access by default), with comprehensive patient management features.
 
 ## 🚀 Features
 
-- **Secure Authentication** with JWT tokens
-- **Role-based Access Control** (Admin, Doctor, Nurse)
+- **Public-first Access** (JWT optional; routes accept requests without tokens)
+- **Simple User Creation** (username only; no password)
 - **Comprehensive Patient Management** (CRUD operations)
 - **Vitals Tracking** (height, weight, BMI, blood pressure, temperature)
 - **HEF, Visual Acuity, Presenting Complaint, History, Consultation, Referral, Physiotherapy** modules
 - **Input Validation** and error handling
 - **Rate Limiting** and security middleware
 - **PostgreSQL Database** with connection pooling
+- **Separate Locations Table** (screening sites)
+- **Queue Numbers** stored on both `visits` and mirrored on `patients`
 
 ## 📋 Prerequisites
 
@@ -90,48 +92,51 @@ The server will start on `http://localhost:3000`
 
 ## 🔐 API Endpoints (Summary)
 
-| Method | Endpoint                                   | Description                                 | Roles                |
-|--------|--------------------------------------------|---------------------------------------------|----------------------|
-| POST   | /api/signup                                | Create new user account                     | Public               |
-| POST   | /api/login                                 | User login                                  | Public               |
-| GET    | /api/profile                               | Get current user profile                    | Authenticated        |
-| GET    | /api/patients                              | List all patients                           | Admin, Doctor, Nurse |
-| POST   | /api/patients                              | Create new patient                          | Admin, Doctor, Nurse |
-| GET    | /api/patients/:id                          | Get patient by ID                           | Admin, Doctor, Nurse |
-| PUT    | /api/patients/:id                          | Update patient                              | Admin, Doctor, Nurse |
-| DELETE | /api/patients/:id                          | Delete patient                              | Admin, Doctor        |
-| POST   | /api/patients/:id/vitals                   | Add vitals for patient                      | Admin, Doctor, Nurse |
-| GET    | /api/patients/:id/vitals                   | List vitals for patient                     | Admin, Doctor, Nurse |
-| POST   | /api/patients/:id/hef                      | Add HEF record                              | Admin, Doctor, Nurse |
-| GET    | /api/patients/:id/hef                      | List HEF records                            | Admin, Doctor, Nurse |
-| POST   | /api/patients/:id/visual_acuity            | Add visual acuity record                    | Admin, Doctor, Nurse |
-| GET    | /api/patients/:id/visual_acuity            | List visual acuity records                  | Admin, Doctor, Nurse |
-| POST   | /api/patients/:id/presenting_complaint     | Add presenting complaint                    | Admin, Doctor        |
-| GET    | /api/patients/:id/presenting_complaint     | List presenting complaints                  | Admin, Doctor, Nurse |
-| POST   | /api/patients/:id/history                  | Add history record                          | Admin, Doctor        |
-| GET    | /api/patients/:id/history                  | List history records                        | Admin, Doctor, Nurse |
-| POST   | /api/patients/:id/consultations            | Create consultation                         | Admin, Doctor        |
-| GET    | /api/patients/:id/consultations            | List consultations for patient              | Admin, Doctor, Nurse |
-| POST   | /api/consultations/:id/referrals           | Add referral to consultation                | Admin, Doctor        |
-| GET    | /api/consultations/:id/referrals           | List referrals for consultation             | Admin, Doctor, Nurse |
-| POST   | /api/patients/:id/physiotherapy            | Add physiotherapy record                    | Admin, Doctor        |
-| GET    | /api/patients/:id/physiotherapy            | List physiotherapy records                  | Admin, Doctor, Nurse |
+| Method | Endpoint                                   | Description                                                  | Roles  |
+|--------|--------------------------------------------|--------------------------------------------------------------|--------|
+| POST   | /api/users                                 | Create username-only user                                    | Public |
+| POST   | /api/session/login                         | (Optional) passwordless login, returns JWT                   | Public |
+| GET    | /api/locations                             | List screening locations                                     | Public |
+| GET    | /api/patients                              | List all patients (filter by location)                       | Public |
+| POST   | /api/patients                              | Create new patient (requires location_id)                    | Public |
+| GET    | /api/patients/:id                          | Get patient by ID                                            | Public |
+| PUT    | /api/patients/:id                          | Update patient                                               | Public |
+| DELETE | /api/patients/:id                          | Delete patient                                               | Public |
+| POST   | /api/patients/:id/vitals                   | Add vitals for patient                                       | Public |
+| PUT    | /api/patients/:id/vitals/:vitalsId         | Update vitals                                                | Public |
+| DELETE | /api/patients/:id/vitals/:vitalsId         | Delete vitals                                                | Public |
+| GET    | /api/patients/:id/vitals                   | List vitals for patient                                      | Public |
+| POST   | /api/patients/:id/hef                      | Add HEF record                                               | Public |
+| PUT    | /api/patients/:id/hef/:hefId               | Update HEF record                                            | Public |
+| DELETE | /api/patients/:id/hef/:hefId               | Delete HEF record                                            | Public |
+| GET    | /api/patients/:id/hef                      | List HEF records                                             | Public |
+| POST   | /api/patients/:id/visual_acuity            | Add visual acuity record                                     | Public |
+| GET    | /api/patients/:id/visual_acuity            | List visual acuity records                                   | Public |
+| POST   | /api/patients/:id/presenting_complaint     | Add presenting complaint                                     | Public |
+| GET    | /api/patients/:id/presenting_complaint     | List presenting complaints                                   | Public |
+| POST   | /api/patients/:id/history                  | Add history record                                           | Public |
+| GET    | /api/patients/:id/history                  | List history records                                         | Public |
+| POST   | /api/patients/:id/consultations            | Create consultation                                          | Public |
+| GET    | /api/patients/:id/consultations            | List consultations for patient                               | Public |
+| POST   | /api/consultations/:id/referrals           | Add referral to consultation                                 | Public |
+| GET    | /api/consultations/:id/referrals           | List referrals for consultation                              | Public |
+| POST   | /api/patients/:id/physiotherapy            | Add physiotherapy record                                     | Public |
+| GET    | /api/patients/:id/physiotherapy            | List physiotherapy records                                   | Public |
+| POST   | /api/registration                          | Combined create (patient + vitals + HEF + visit)             | Public |
+| PUT    | /api/registration/:patientId               | Combined update (patient + optional append vitals/HEF/visit) | Public |
+| DELETE | /api/registration/:patientId               | Combined delete patient (cascades)                           | Public |
+| PUT    | /api/visits/:id                            | Update visit queue_no and mirror to patient                  | Public |
+
 
 For full request/response details, see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
 ## 🔑 Authentication
 
-All endpoints (except login/signup) require authentication. Include the JWT token in the Authorization header:
+Authentication is **optional**. You may call endpoints without a token. If you do log in, include the JWT token in the Authorization header:
 
 ```
 Authorization: Bearer <your-jwt-token>
 ```
-
-## 👥 User Roles
-
-- **Admin**: Full access
-- **Doctor**: Manage patients, consultations, referrals, physiotherapy
-- **Nurse**: View patients; add vitals, HEF, visual acuity
 
 ## 🧪 Testing
 

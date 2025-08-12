@@ -6,7 +6,7 @@
 
 ## Authentication
 
-Most endpoints require a valid JWT in the `Authorization` header:
+Authentication is **optional**. Endpoints accept requests without a token. If you choose to log in, include a JWT in the `Authorization` header:
 
 ```
 Authorization: Bearer <your-jwt-token>
@@ -18,19 +18,13 @@ Authorization: Bearer <your-jwt-token>
 
 ### Authentication
 
-**POST** `signup`
-Creates a new user account.
+**POST** `users`
+Creates a new user with just a username.
 
 * **Body**
 
   ```json
-  {
-    "firstName": "John",
-    "lastName": "Doe",
-    "username": "johndoe",
-    "password": "password123",
-    "role": "doctor"
-  }
+  { "username": "alice" }
   ```
 
 * **Response (201)**
@@ -38,44 +32,30 @@ Creates a new user account.
   ```json
   {
     "message": "User created successfully",
-    "user": {
-      "id": 1,
-      "username": "johndoe",
-      "role": "doctor",
-      "first_name": "John",
-      "last_name": "Doe"
-    },
-    "token": "<jwt-token>"
+    "user": { "id": 1, "username": "alice" }
   }
   ```
 
 ---
 
-**POST** `login`
-Authenticates a user and returns a JWT.
+**POST** `session/login`
+Passwordless login (optional) that upserts the user and returns a JWT.
 
 * **Body**
 
   ```json
-  {
-    "username": "johndoe",
-    "password": "password123"
-  }
+  { "username": "alice" }
   ```
 
 * **Response (200)**
 
   ```json
   {
-    "message": "Login successful",
+    "token": "<jwt-token>",
     "user": {
       "id": 1,
-      "username": "johndoe",
-      "role": "doctor",
-      "first_name": "John",
-      "last_name": "Doe"
-    },
-    "token": "<jwt-token>"
+      "username": "alice"
+    }
   }
   ```
 
@@ -103,11 +83,9 @@ Fetches the current user’s profile.
 
 **GET** `patients`
 List all patients.
-(Requires role: admin, doctor, nurse)
 
 **POST** `patients`
 Create a new patient.
-(Requires role: admin, doctor, nurse)
 
 * **Body**
 
@@ -124,15 +102,12 @@ Create a new patient.
 
 **GET** `patients/{id}`
 Fetch a patient by ID.
-(Requires role: admin, doctor, nurse)
 
 **PUT** `patients/{id}`
 Update a patient’s info.
-(Requires role: admin, doctor, nurse)
 
 **DELETE** `patients/{id}`
 Delete a patient.
-(Requires role: admin, doctor)
 
 ---
 
@@ -140,7 +115,6 @@ Delete a patient.
 
 **POST** `patients/{id}/vitals`
 Add a vitals record to a patient.
-(Requires role: admin, doctor, nurse)
 
 * **Body**
 
@@ -157,7 +131,6 @@ Add a vitals record to a patient.
 
 **GET** `patients/{id}/vitals`
 List all vitals records for a patient.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -165,11 +138,9 @@ List all vitals records for a patient.
 
 **POST** `patients/{id}/hef`
 Add an HEF record.
-(Requires role: admin, doctor, nurse)
 
 **GET** `patients/{id}/hef`
 List HEF records.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -177,11 +148,9 @@ List HEF records.
 
 **POST** `patients/{id}/visual_acuity`
 Add a visual acuity record.
-(Requires role: admin, doctor, nurse)
 
 **GET** `patients/{id}/visual_acuity`
 List visual acuity records.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -189,11 +158,9 @@ List visual acuity records.
 
 **POST** `patients/{id}/presenting_complaint`
 Add a presenting complaint.
-(Requires role: admin, doctor)
 
 **GET** `patients/{id}/presenting_complaint`
 List presenting complaints.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -201,11 +168,9 @@ List presenting complaints.
 
 **POST** `patients/{id}/history`
 Add a history record.
-(Requires role: admin, doctor)
 
 **GET** `patients/{id}/history`
 List history records.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -213,11 +178,9 @@ List history records.
 
 **POST** `patients/{id}/consultations`
 Create a consultation.
-(Requires role: admin, doctor)
 
 **GET** `patients/{id}/consultations`
 List consultations for a patient.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -225,11 +188,9 @@ List consultations for a patient.
 
 **POST** `consultations/{id}/referrals`
 Add a referral to a consultation.
-(Requires role: admin, doctor)
 
 **GET** `consultations/{id}/referrals`
 List referrals for a consultation.
-(Requires role: admin, doctor, nurse)
 
 ---
 
@@ -237,11 +198,23 @@ List referrals for a consultation.
 
 **POST** `patients/{id}/physiotherapy`
 Add a physiotherapy record.
-(Requires role: admin, doctor)
 
 **GET** `patients/{id}/physiotherapy`
 List physiotherapy records.
-(Requires role: admin, doctor, nurse)
+
+---
+
+### Combined Registration
+
+**POST** `registration`  
+Create a patient and optionally append vitals, HEF, and visit in one request.
+
+**PUT** `registration/{patientId}`  
+**Combined update (patient + optional append vitals/HEF/visit)**  
+Update patient data and optionally append a vitals record, HEF record, and/or visit in a single call.
+
+**DELETE** `registration/{patientId}`  
+Delete a patient (cascades to vitals/HEF/visits).
 
 ---
 
@@ -283,14 +256,6 @@ List physiotherapy records.
     "message": "Internal server error"
   }
   ```
-
----
-
-## User Roles
-
-* **admin**: Full access
-* **doctor**: Manage patients, consultations, referrals, physiotherapy
-* **nurse**: View patients; add vitals, HEF, visual acuity
 
 ---
 

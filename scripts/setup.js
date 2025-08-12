@@ -1,4 +1,5 @@
 // scripts/setup.js
+
 require('../server.js')
 const db = require('../config/db');
 const fs = require('fs');
@@ -58,7 +59,7 @@ async function runSetup() {
   console.log('\nNext steps:');
   console.log('1. Start the server: npm run dev');
   console.log('2. Test the API: curl http://localhost:3000/health');
-  console.log('3. Create your first user: POST /api/signup');
+  console.log('3. Create your first user: POST /api/users (body: { "username": "yourname" })');
 }
 
 runSetup().catch(console.error); 
