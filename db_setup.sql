@@ -1,154 +1,232 @@
--- db_setup.sql
--- Run this script in your PostgreSQL database to create the necessary tables.
+-- =========================================
+-- PostgreSQL Setup Script with CASCADE
+-- =========================================
 
--- Locations Table
-CREATE TABLE IF NOT EXISTS locations (
-  id SERIAL PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
-  is_active BOOLEAN NOT NULL DEFAULT TRUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+-- Drop tables in reverse dependency order
+DROP TABLE IF EXISTS referral CASCADE;
+DROP TABLE IF EXISTS painpoints CASCADE;
+DROP TABLE IF EXISTS consultation CASCADE;
+DROP TABLE IF EXISTS physiotherapy CASCADE;
+DROP TABLE IF EXISTS seva CASCADE;
+DROP TABLE IF EXISTS history CASCADE;
+DROP TABLE IF EXISTS presenting_complaint CASCADE;
+DROP TABLE IF EXISTS visual_acuity CASCADE;
+DROP TABLE IF EXISTS hef CASCADE;
+DROP TABLE IF EXISTS vitals CASCADE;
+DROP TABLE IF EXISTS visits CASCADE;
+DROP TABLE IF EXISTS patients CASCADE;
+DROP TABLE IF EXISTS pharmacy CASCADE;
+DROP TABLE IF EXISTS locations CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
+-- Users
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) UNIQUE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Seed (idempotent)
-INSERT INTO locations(name) VALUES
-  ('Poipet'),
-  ('Mongkol Borey'),
-  ('Sisophon')
-ON CONFLICT (name) DO NOTHING;
-
--- Users Table for staff login
-CREATE TABLE IF NOT EXISTS users (
+-- Locations
+CREATE TABLE locations (
     id SERIAL PRIMARY KEY,
-    username VARCHAR(100) UNIQUE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    name TEXT UNIQUE NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Patients Table
-CREATE TABLE IF NOT EXISTS patients (
+-- Patients
+CREATE TABLE patients (
     id SERIAL PRIMARY KEY,
-    english_name VARCHAR(255) NOT NULL,
+    face_id INT UNIQUE NOT NULL,
+    location_id INT REFERENCES locations(id),           -- Will not be deleted, set inactive only
+    english_name VARCHAR(255),
     khmer_name VARCHAR(255),
     date_of_birth DATE,
     sex VARCHAR(10),
-    phone_number VARCHAR(50),
     address TEXT,
-    location_id INTEGER NOT NULL REFERENCES locations(id),
-    queue_no TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    phone_number VARCHAR(50),
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id),           -- Will not be deleted, set inactive only
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Vitals Table
-CREATE TABLE IF NOT EXISTS vitals (
+-- Visits
+CREATE TABLE visits (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-    height_cm NUMERIC,
-    weight_kg NUMERIC,
-    bmi NUMERIC,
-    blood_pressure VARCHAR(50),
-    temperature_c NUMERIC,
-    vitals_notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    patient_id INT NOT NULL REFERENCES patients(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    location_id INT REFERENCES locations(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    queue_no VARCHAR(50) NOT NULL,
+    visit_date DATE NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- HEF table
-CREATE TABLE IF NOT EXISTS hef (
+-- Vitals
+CREATE TABLE vitals (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-    know_hef BOOLEAN NOT NULL,
-    have_hef BOOLEAN NOT NULL,
-    hef_notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    height NUMERIC NOT NULL,
+    weight NUMERIC NOT NULL,
+    bmi NUMERIC NOT NULL,
+    bp_systolic NUMERIC NOT NULL,
+    bp_diastolic NUMERIC NOT NULL,
+    temperature NUMERIC NOT NULL,
+    notes TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- HEF
+CREATE TABLE hef (
+    id SERIAL PRIMARY KEY,
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    know_of_hef BOOLEAN NOT NULL,
+    has_hef BOOLEAN NOT NULL,
+    notes TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Visual Acuity
-CREATE TABLE IF NOT EXISTS visual_acuity (
+CREATE TABLE visual_acuity (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-    left_pin VARCHAR(50) NOT NULL,
-    left_no_pin VARCHAR(50) NOT NULL,
-    right_pin VARCHAR(50) NOT NULL,
-    right_no_pin VARCHAR(50) NOT NULL,
-    visual_notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    left_with_pinhole NUMERIC NOT NULL,
+    left_without_pinhole NUMERIC NOT NULL,
+    right_with_pinhole NUMERIC NOT NULL,
+    right_without_pinhole NUMERIC NOT NULL,
+    notes TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Presenting Complaint
-CREATE TABLE IF NOT EXISTS presenting_complaint (
+CREATE TABLE presenting_complaint (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-    history TEXT,
-    red_flags TEXT,
-    systems_review TEXT,
-    drug_allergies TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    history TEXT NOT NULL,
+    red_flags TEXT NOT NULL,
+    systems_review TEXT NOT NULL,
+    drug_allergies TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- History
-CREATE TABLE IF NOT EXISTS history (
+CREATE TABLE history (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-    past TEXT,
-    drug_and_treatment TEXT,
-    family TEXT,
-    social TEXT,
-    systems_review TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    past TEXT NOT NULL,
+    drug_and_treatment TEXT NOT NULL,
+    family TEXT NOT NULL,
+    social TEXT NOT NULL,
+    systems_review TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Consult
-CREATE TABLE IF NOT EXISTS consultation (
+-- SEVA
+CREATE TABLE seva (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id),
-    doctor_id INTEGER NOT NULL REFERENCES users(id),
-    consultation_notes TEXT,
-    prescription TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Referral
-CREATE TABLE IF NOT EXISTS referral (
-    id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id),
-    doctor_id INTEGER NOT NULL REFERENCES users(id),
-    consultation_id INTEGER NOT NULL REFERENCES consultation(id),
-    referral_date DATE,
-    referral_symptom VARCHAR(50),
-    referral_symptom_duration VARCHAR(50),
-    referral_reason TEXT, 
-    referral_type TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    CHECK (referral_type IN (
-      'MongKol Borey Hospital',
-      'Optometrist',
-      'Dentist',
-      'Poipet Referral Hospital',
-      'Bong Bondol',
-      'SEVA',
-      'WSAudiology'
-    ))
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    left_with_pinhole_new NUMERIC NOT NULL,
+    left_without_pinhole_new NUMERIC NOT NULL,
+    right_with_pinhole_new NUMERIC NOT NULL,
+    right_without_pinhole_new NUMERIC NOT NULL,
+    diagnosis TEXT NOT NULL,
+    date_of_referral DATE NOT NULL,
+    notes TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Physiotherapy
-CREATE TABLE IF NOT EXISTS physiotherapy (
+CREATE TABLE physiotherapy (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id),
-    doctor_id INTEGER NOT NULL REFERENCES users(id),
-    pain_areas_description TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    notes TEXT NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Visits / Queue numbers (temporary per-day per-location)
-CREATE TABLE IF NOT EXISTS visits (
+-- Consultation
+CREATE TABLE consultation (
     id SERIAL PRIMARY KEY,
-    patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-    location_id INTEGER NOT NULL REFERENCES locations(id),
-    visit_date DATE NOT NULL DEFAULT CURRENT_DATE,
-    queue_no TEXT NOT NULL,
-    status TEXT DEFAULT 'waiting',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (location_id, visit_date, queue_no)
+    visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    notes TEXT NOT NULL,
+    prescription TEXT NOT NULL,
+    require_referral BOOLEAN NOT NULL DEFAULT FALSE,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Check for valid queue numbers (digits + optional uppercase letters)
-ALTER TABLE patients ADD CONSTRAINT patients_queue_no_chk CHECK (queue_no ~ '^[0-9]+[A-Z]*$');
-ALTER TABLE visits   ADD CONSTRAINT visits_queue_no_chk   CHECK (queue_no ~ '^[0-9]+[A-Z]*$');
+-- Painpoints
+CREATE TABLE painpoints (
+    id SERIAL PRIMARY KEY,
+    consultation_id INT UNIQUE NOT NULL REFERENCES consultation(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    proportion NUMERIC NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Referral
+CREATE TABLE referral (
+    id SERIAL PRIMARY KEY,
+    consultation_id INT NOT NULL REFERENCES consultation(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    referral_date DATE NOT NULL,
+    referral_type TEXT NOT NULL,
+    illness VARCHAR(255) NOT NULL,
+    duration VARCHAR(255) NOT NULL,
+    reason TEXT NOT NULL,
+    doctor_name VARCHAR(255) NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Pharmacy
+CREATE TABLE pharmacy (
+    id SERIAL PRIMARY KEY,
+    location_id INT UNIQUE NOT NULL REFERENCES locations(id)
+        ON DELETE CASCADE ON UPDATE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    stock_level VARCHAR(50) NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_by INT NOT NULL REFERENCES users(id)
+        ON DELETE SET NULL ON UPDATE CASCADE,
+    created_at TIMESTAMP DEFAULT NOW()
+);
