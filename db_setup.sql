@@ -46,7 +46,7 @@ CREATE TABLE patients (
     sex VARCHAR(10),
     address TEXT,
     phone_number VARCHAR(50),
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id),           -- Will not be deleted, set inactive only
     created_at TIMESTAMP DEFAULT NOW()
 );
@@ -60,7 +60,7 @@ CREATE TABLE visits (
         ON DELETE SET NULL ON UPDATE CASCADE,
     queue_no VARCHAR(50) NOT NULL,
     visit_date DATE NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -78,7 +78,7 @@ CREATE TABLE vitals (
     bp_diastolic NUMERIC NOT NULL,
     temperature NUMERIC NOT NULL,
     notes TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -92,7 +92,7 @@ CREATE TABLE hef (
     know_of_hef BOOLEAN NOT NULL,
     has_hef BOOLEAN NOT NULL,
     notes TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -108,7 +108,7 @@ CREATE TABLE visual_acuity (
     right_with_pinhole NUMERIC NOT NULL,
     right_without_pinhole NUMERIC NOT NULL,
     notes TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -123,7 +123,7 @@ CREATE TABLE presenting_complaint (
     red_flags TEXT NOT NULL,
     systems_review TEXT NOT NULL,
     drug_allergies TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -139,7 +139,7 @@ CREATE TABLE history (
     family TEXT NOT NULL,
     social TEXT NOT NULL,
     systems_review TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -157,7 +157,7 @@ CREATE TABLE seva (
     diagnosis TEXT NOT NULL,
     date_of_referral DATE NOT NULL,
     notes TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -169,7 +169,7 @@ CREATE TABLE physiotherapy (
     visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     notes TEXT NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -183,7 +183,7 @@ CREATE TABLE consultation (
     notes TEXT NOT NULL,
     prescription TEXT NOT NULL,
     require_referral BOOLEAN NOT NULL DEFAULT FALSE,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -192,10 +192,11 @@ CREATE TABLE consultation (
 -- Painpoints
 CREATE TABLE painpoints (
     id SERIAL PRIMARY KEY,
-    consultation_id INT UNIQUE NOT NULL REFERENCES consultation(id)
+    physiotherapy_id INT NOT NULL REFERENCES physiotherapy(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    proportion NUMERIC NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    x_coord REAL NOT NULL CHECK (x_coord >= 0 AND x_coord <= 100),
+    y_coord REAL NOT NULL CHECK (y_coord >= 0 AND y_coord <= 100),
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -212,7 +213,7 @@ CREATE TABLE referral (
     duration VARCHAR(255) NOT NULL,
     reason TEXT NOT NULL,
     doctor_name VARCHAR(255) NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
@@ -225,7 +226,7 @@ CREATE TABLE pharmacy (
         ON DELETE CASCADE ON UPDATE CASCADE,
     name VARCHAR(255) NOT NULL,
     stock_level VARCHAR(50) NOT NULL,
-    last_updated_at TIMESTAMP NOT NULL,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
