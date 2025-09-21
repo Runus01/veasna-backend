@@ -74,6 +74,7 @@ CREATE TABLE vitals (
     height NUMERIC NOT NULL CHECK (height > 0),
     weight NUMERIC NOT NULL CHECK (weight > 0),
     bmi NUMERIC NOT NULL CHECK (bmi > 0),
+    below_3rd_percentile BOOLEAN NOT NULL,
     bp_systolic INT NOT NULL,
     bp_diastolic INT NOT NULL,
     temperature NUMERIC NOT NULL,
