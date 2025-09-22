@@ -47,7 +47,7 @@ CREATE TABLE patients (
     address TEXT,
     phone_number VARCHAR(50),
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id),           -- Will not be deleted, set inactive only
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,           -- Will not be deleted, set inactive only
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -61,8 +61,7 @@ CREATE TABLE visits (
     queue_no VARCHAR(50) NOT NULL,
     visit_date DATE NOT NULL,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -80,8 +79,7 @@ CREATE TABLE vitals (
     temperature NUMERIC NOT NULL,
     notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -94,8 +92,7 @@ CREATE TABLE hef (
     has_hef BOOLEAN NOT NULL,
     notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,    
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -110,8 +107,7 @@ CREATE TABLE visual_acuity (
     right_without_pinhole NUMERIC NOT NULL,
     notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -125,8 +121,7 @@ CREATE TABLE presenting_complaint (
     systems_review TEXT NOT NULL,
     drug_allergies TEXT NOT NULL,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -141,8 +136,7 @@ CREATE TABLE history (
     social TEXT NOT NULL,
     systems_review TEXT NOT NULL,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -159,8 +153,7 @@ CREATE TABLE seva (
     date_of_referral DATE NOT NULL,
     notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -171,8 +164,7 @@ CREATE TABLE physiotherapy (
         ON DELETE CASCADE ON UPDATE CASCADE,
     notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -185,8 +177,7 @@ CREATE TABLE consultation (
     prescription TEXT NOT NULL,
     require_referral BOOLEAN NOT NULL DEFAULT FALSE,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -198,8 +189,7 @@ CREATE TABLE painpoints (
     x_coord REAL NOT NULL CHECK (x_coord >= 0 AND x_coord <= 100),
     y_coord REAL NOT NULL CHECK (y_coord >= 0 AND y_coord <= 100),
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,    
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -215,8 +205,7 @@ CREATE TABLE referral (
     reason TEXT NOT NULL,
     doctor_name VARCHAR(255) NOT NULL,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -228,8 +217,7 @@ CREATE TABLE pharmacy (
     drug_name VARCHAR(255) NOT NULL,
     stock_level VARCHAR(50) NOT NULL CHECK (stock_level IN ('low', 'medium', 'high', 'no stock')),
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    last_updated_by INT NOT NULL REFERENCES users(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
+    last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
 
     UNIQUE (location_id, drug_name)
