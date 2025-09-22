@@ -43,7 +43,7 @@ CREATE TABLE patients (
     english_name VARCHAR(255),
     khmer_name VARCHAR(255),
     date_of_birth DATE,
-    sex VARCHAR(10),
+    sex CHAR(1) CHECK (sex IN ('M', 'F')),
     address TEXT,
     phone_number VARCHAR(50),
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -78,7 +78,7 @@ CREATE TABLE vitals (
     bp_systolic INT NOT NULL,
     bp_diastolic INT NOT NULL,
     temperature NUMERIC NOT NULL,
-    notes TEXT NOT NULL,
+    notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
@@ -92,7 +92,7 @@ CREATE TABLE hef (
         ON DELETE CASCADE ON UPDATE CASCADE,
     know_of_hef BOOLEAN NOT NULL,
     has_hef BOOLEAN NOT NULL,
-    notes TEXT NOT NULL,
+    notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
@@ -108,7 +108,7 @@ CREATE TABLE visual_acuity (
     left_without_pinhole NUMERIC NOT NULL,
     right_with_pinhole NUMERIC NOT NULL,
     right_without_pinhole NUMERIC NOT NULL,
-    notes TEXT NOT NULL,
+    notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
@@ -157,7 +157,7 @@ CREATE TABLE seva (
     right_without_pinhole_new NUMERIC NOT NULL,
     diagnosis TEXT NOT NULL,
     date_of_referral DATE NOT NULL,
-    notes TEXT NOT NULL,
+    notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
@@ -169,7 +169,7 @@ CREATE TABLE physiotherapy (
     id SERIAL PRIMARY KEY,
     visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    notes TEXT NOT NULL,
+    notes TEXT DEFAULT '',
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
@@ -181,7 +181,7 @@ CREATE TABLE consultation (
     id SERIAL PRIMARY KEY,
     visit_id INT UNIQUE NOT NULL REFERENCES visits(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    notes TEXT NOT NULL,
+    notes TEXT DEFAULT '',
     prescription TEXT NOT NULL,
     require_referral BOOLEAN NOT NULL DEFAULT FALSE,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -223,12 +223,14 @@ CREATE TABLE referral (
 -- Pharmacy
 CREATE TABLE pharmacy (
     id SERIAL PRIMARY KEY,
-    location_id INT UNIQUE NOT NULL REFERENCES locations(id)
+    location_id INT NOT NULL REFERENCES locations(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
-    name VARCHAR(255) NOT NULL,
-    stock_level VARCHAR(50) NOT NULL,
+    drug_name VARCHAR(255) NOT NULL,
+    stock_level VARCHAR(50) NOT NULL CHECK (stock_level IN ('low', 'medium', 'high', 'no stock')),
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id)
         ON DELETE SET NULL ON UPDATE CASCADE,
     created_at TIMESTAMP DEFAULT NOW()
+
+    UNIQUE (location_id, drug_name)
 );
