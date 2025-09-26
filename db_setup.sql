@@ -218,7 +218,6 @@ CREATE TABLE pharmacy (
     stock_level VARCHAR(50) NOT NULL CHECK (stock_level IN ('low', 'medium', 'high', 'no stock')),
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
-    created_at TIMESTAMP DEFAULT NOW()
-
+    created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE (location_id, drug_name)
 );
