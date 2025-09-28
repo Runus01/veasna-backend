@@ -5,33 +5,51 @@ const router = express.Router();
 const db = require('../config/db');
 const { authenticateToken, requireRole } = require('../routes/auth');
 
+// (location id) -> patients[]
 router.get('/', authenticateToken, requireRole(['any']), async (req, res) => {
-  const { location_id, location } = req.query;
+  const { location_id } = req.query;
+
+  if (!location_id) {
+    return res.status(400).json({ error: 'location_id is required' });
+  }
 
   try {
-    let queryText = `
+    const queryText = `
       SELECT p.*, l.name AS location_name
       FROM patients p
       JOIN locations l ON l.id = p.location_id
+      WHERE p.location_id = $1
+      ORDER BY p.english_name ASC
     `;
-    const values = [];
+    const result = await db.query(queryText, [location_id]);
+    res.status(200).json(result.rows)
 
-    if (location_id) {
-      queryText += ' WHERE p.location_id = $1';
-      values.push(Number(location_id));
-    } else if (location) {
-      queryText += ' WHERE LOWER(l.name) = LOWER($1)';
-      values.push(location);
-    }
-
-    queryText += ' ORDER BY p.created_at DESC';
-
-    const result = await db.query(queryText, values);
-    res.status(200).json(result.rows);
   } catch (err) {
     console.error('Error fetching patients:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+
+router.get('/search', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { q } = req.query;
+
+  if (!q) {
+    return res.status(400).json({ error: 'Search query "q" is required' });
+  }
+
+  try {
+    const searchTerm = `%${q}%`;
+    const queryText = `
+      SELECT * FROM patients
+      WHERE english_name ILIKE $1 OR khmer_name ILIKE $1
+      LIMIT 10
+    `;
+    const result = await db.query(queryText, [searchTerm]);
+    res.status(200).json(result.rows);
+  } catch (err) {
+    console.error('Error searching patients:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+})
 
 module.exports = router;

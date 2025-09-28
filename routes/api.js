@@ -8,11 +8,15 @@ const sessionRoutes = require('./session');
 const patientRoutes = require('./patients');
 const locationRoutes = require('./locations');
 const registrationRoutes = require('./registration');
+const queueRoutes = require('./queue');
+const visitRoutes = require('./visits')
 
 router.use('/auth', sessionRoutes);
-router.use('/patients', patientRoutes);
 router.use('/locations', locationRoutes);
 router.use('/registration', registrationRoutes);
+router.use('/queue', queueRoutes);
+router.use('/visits', visitRoutes);
+router.use('/patients', patientRoutes)
 
 const { body } = require('express-validator');
 const db = require('../config/db');
