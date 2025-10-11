@@ -114,4 +114,124 @@ router.post('/', authenticateToken, requireRole(['any']), async (req, res) => {
     }
 });
 
+// GET: vitals
+router.get('/vitals/:id/:visit_id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id } = req.params;
+  const { visit_id } = req.params;
+
+  if (!id || !visit_id) {
+    return res.status(400).json({ error: 'Patient and visit ids are required' });
+  }
+
+  try {
+    const queryText = `
+      SELECT v.*
+      FROM vitals v
+      INNER JOIN visits vi ON vi.id = v.visit_id
+      WHERE vi.patient_id = $1 AND vi.id = $2
+    `;
+
+    const result = await db.query(queryText, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Vitals not found' });
+    }
+
+    res.status(200).json(result.rows[0]);
+
+  } catch (err) {
+    console.error('Error fetching patient vitals:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// GET: history
+router.get('/history/:id/:visit_id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id, visit_id } = req.params;
+
+  if (!id || !visit_id) {
+    return res.status(400).json({ error: 'Patient and visit ids are required' });
+  }
+
+  try {
+    const queryText = `
+      SELECT h.*
+      FROM history h
+      INNER JOIN visits vi ON vi.id = h.visit_id
+      WHERE vi.patient_id = $1 AND vi.id = $2
+    `;
+
+    const result = await db.query(queryText, [id, visit_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'History not found' });
+    }
+
+    res.status(200).json(result.rows[0]);
+
+  } catch (err) {
+    console.error('Error fetching patient history:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// GET: visual_acuity
+router.get('/visual-acuity/:id/:visit_id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id, visit_id } = req.params;
+
+  if (!id || !visit_id) {
+    return res.status(400).json({ error: 'Patient id and Visit id are required' });
+  }
+
+  try {
+    const queryText = `
+      SELECT va.*
+      FROM visual_acuity va
+      INNER JOIN visits vi ON vi.id = va.visit_id
+      WHERE vi.patient_id = $1 AND va.visit_id = $2
+    `;
+
+    const result = await db.query(queryText, [id, visit_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Visual acuity data not found for this patient/visit" });
+    }
+
+    res.status(200).json(result.rows[0]); // one record per visit
+  } catch (err) {
+    console.error('Error fetching visual acuity:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// GET: presenting complaints
+router.get('/presenting-complaint/:id/:visit_id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id, visit_id } = req.params;
+
+  if (!id || !visit_id) {
+    return res.status(400).json({ error: 'Patient id and Visit id are required' });
+  }
+
+  try {
+    const queryText = `
+      SELECT pc.*
+      FROM presenting_complaint pc
+      INNER JOIN visits vi ON vi.id = pc.visit_id
+      WHERE vi.patient_id = $1 AND pc.visit_id = $2
+    `;
+
+    const result = await db.query(queryText, [id, visit_id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Presenting complaint not found for this patient/visit" });
+    }
+
+    res.status(200).json(result.rows[0]); // one record per visit
+  } catch (err) {
+    console.error('Error fetching presenting complaint:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+
 module.exports = router;

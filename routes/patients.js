@@ -29,6 +29,34 @@ router.get('/', authenticateToken, requireRole(['any']), async (req, res) => {
     res.status(500).json({ error: 'Internal Server Error' });
   }
 });
+// (patient id) -> patient details
+router.get('/:id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Patient id is required' });
+  }
+
+  try {
+    const queryText = `
+      SELECT p.*
+      FROM patients p
+      WHERE p.id = $1
+    `;
+
+    const result = await db.query(queryText, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    res.status(200).json(result.rows[0]);
+
+  } catch (err) {
+    console.error('Error fetching patient:', err);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
 
 router.get('/search', authenticateToken, requireRole(['any']), async (req, res) => {
   const { q } = req.query;
