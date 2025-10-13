@@ -131,7 +131,7 @@ router.get('/vitals/:id/:visit_id', authenticateToken, requireRole(['any']), asy
       WHERE vi.patient_id = $1 AND vi.id = $2
     `;
 
-    const result = await db.query(queryText, [id]);
+    const result = await db.query(queryText, [id, visit_id]);
 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Vitals not found' });

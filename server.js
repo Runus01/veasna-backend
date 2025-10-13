@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const bodyParser = require('body-parser');
 
 const app = express();
+app.set("etag", "strong");
 const PORT = process.env.PORT || 3000;
 
 // Security middleware
