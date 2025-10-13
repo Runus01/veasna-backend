@@ -114,6 +114,8 @@ router.post('/', authenticateToken, requireRole(['any']), async (req, res) => {
     }
 });
 
+// === SHARED ACROSS SEVA, PHYSIO, DOC CONSULT ===
+
 // GET: vitals
 router.get('/vitals/:id/:visit_id', authenticateToken, requireRole(['any']), async (req, res) => {
   const { id } = req.params;
@@ -230,6 +232,265 @@ router.get('/presenting-complaint/:id/:visit_id', authenticateToken, requireRole
   } catch (err) {
     console.error('Error fetching presenting complaint:', err);
     res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// === SEVA === //
+// Get
+router.get("/seva/:visit_id", authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  // Validate visit_id
+  const visitIdNum = parseInt(visit_id, 10);
+  if (isNaN(visitIdNum)) {
+    return res.status(400).json({ error: "Invalid visit_id" });
+  }
+
+  const query = `
+    SELECT
+      id,
+      visit_id,
+      left_with_pinhole_new,
+      right_with_pinhole_new,
+      left_without_pinhole_new,
+      right_without_pinhole_new,
+      diagnosis,
+      date_of_referral,
+      notes,
+      last_updated_by,
+      last_updated_at,
+      created_at
+    FROM seva
+    WHERE visit_id = $1;
+  `;
+
+  try {
+    const { rows } = await db.query(query, [visitIdNum]);
+
+    if (rows.length === 0) {
+      return res.status(200).json(null);
+    }
+
+    res.status(200).json(rows[0]);
+  } catch (err) {
+    console.error("❌ Error fetching SEVA record:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// Add or update
+router.post('/seva/:visit_id', authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  // Ensure visit_id is numeric
+  if (!visit_id) {
+    return res.status(400).json({ error: "visit_id is required" });
+  }
+
+  const {
+    left_with_pinhole_new,
+    right_with_pinhole_new,
+    left_without_pinhole_new,
+    right_without_pinhole_new,
+    diagnosis,
+    date_of_referral,
+    notes = "",
+  } = req.body;
+
+  const last_updated_by = req.user.id;
+
+  const query = `
+    INSERT INTO seva (
+      visit_id,
+      left_with_pinhole_new,
+      right_with_pinhole_new,
+      left_without_pinhole_new,
+      right_without_pinhole_new,
+      diagnosis,
+      date_of_referral,
+      notes,
+      last_updated_by
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    ON CONFLICT (visit_id) DO UPDATE SET
+      left_with_pinhole_new = EXCLUDED.left_with_pinhole_new,
+      right_with_pinhole_new = EXCLUDED.right_with_pinhole_new,
+      left_without_pinhole_new = EXCLUDED.left_without_pinhole_new,
+      right_without_pinhole_new = EXCLUDED.right_without_pinhole_new,
+      diagnosis = EXCLUDED.diagnosis,
+      date_of_referral = EXCLUDED.date_of_referral,
+      notes = EXCLUDED.notes,
+      last_updated_by = EXCLUDED.last_updated_by,
+      last_updated_at = NOW()
+    RETURNING *;
+  `;
+
+  try {
+    const { rows } = await db.query(query, [
+      visit_id,
+      left_with_pinhole_new,
+      right_with_pinhole_new,
+      left_without_pinhole_new,
+      right_without_pinhole_new,
+      diagnosis,
+      date_of_referral,
+      notes,
+      last_updated_by,
+    ]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "SEVA record not found or not created" });
+    }
+
+    res.status(200).json(rows[0]);
+  } catch (err) {
+    console.error("❌ Error upserting seva:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// === PHYSIOTHERAPY === //
+
+// GET physiotherapy by visit_id
+// GET physiotherapy by visit_id, including painpoints
+router.get("/physiotherapy/:visit_id", authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  // Validate visit_id
+  const visitIdNum = parseInt(visit_id, 10);
+  if (isNaN(visitIdNum)) {
+    return res.status(400).json({ error: "Invalid visit_id" });
+  }
+
+  try {
+    // Fetch physiotherapy record
+    const physioQuery = `
+      SELECT
+        id,
+        visit_id,
+        notes,
+        last_updated_by,
+        last_updated_at,
+        created_at
+      FROM physiotherapy
+      WHERE visit_id = $1;
+    `;
+    const physioResult = await db.query(physioQuery, [visitIdNum]);
+
+    if (physioResult.rows.length === 0) {
+      return res.status(200).json(null);
+    }
+
+    const physio = physioResult.rows[0];
+
+    // Fetch painpoints
+    const painpointsQuery = `
+      SELECT
+        id,
+        x_coord,
+        y_coord,
+        last_updated_by,
+        last_updated_at,
+        created_at
+      FROM painpoints
+      WHERE physiotherapy_id = $1;
+    `;
+    const painpointsResult = await db.query(painpointsQuery, [physio.id]);
+
+    // Map snake_case to camelCase
+    const painpoints = painpointsResult.rows.map(pp => ({
+      id: pp.id,
+      xCoord: pp.x_coord,
+      yCoord: pp.y_coord,
+      lastUpdatedBy: pp.last_updated_by,
+      lastUpdatedAt: pp.last_updated_at,
+      createdAt: pp.created_at,
+    }));
+
+    const response = {
+      id: physio.id,
+      visitId: physio.visit_id,
+      notes: physio.notes,
+      lastUpdatedBy: physio.last_updated_by,
+      lastUpdatedAt: physio.last_updated_at,
+      createdAt: physio.created_at,
+      painpoints,
+    };
+
+    res.status(200).json(response);
+
+  } catch (err) {
+    console.error("❌ Error fetching physiotherapy with painpoints:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
+// POST physiotherapy by visit_id (add & update)
+router.post("/physiotherapy/:visit_id", authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  if (!visit_id) {
+    return res.status(400).json({ error: "visit_id is required" });
+  }
+
+  const { notes = "", painpoints = [] } = req.body;
+  const last_updated_by = req.user.id;
+
+  try {
+    // Upsert physiotherapy record
+    const physioQuery = `
+      INSERT INTO physiotherapy (visit_id, notes, last_updated_by)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (visit_id) DO UPDATE SET
+        notes = EXCLUDED.notes,
+        last_updated_by = EXCLUDED.last_updated_by,
+        last_updated_at = NOW()
+      RETURNING id, visit_id, notes, last_updated_by, last_updated_at, created_at;
+    `;
+    const { rows } = await db.query(physioQuery, [visit_id, notes, last_updated_by]);
+    const physio = rows[0];
+
+    // Delete existing painpoints for this physiotherapy (simple approach)
+    await db.query("DELETE FROM painpoints WHERE physiotherapy_id = $1", [physio.id]);
+
+    // Insert new painpoints
+    const painpointPromises = painpoints.map(pp => 
+      db.query(
+        `INSERT INTO painpoints (physiotherapy_id, x_coord, y_coord, last_updated_by)
+         VALUES ($1, $2, $3, $4)`,
+        [physio.id, pp.xCoord, pp.yCoord, last_updated_by]
+      )
+    );
+    await Promise.all(painpointPromises);
+
+    // Fetch updated painpoints
+    const { rows: painpointRows } = await db.query(
+      `SELECT id, x_coord, y_coord, last_updated_by, last_updated_at, created_at
+       FROM painpoints
+       WHERE physiotherapy_id = $1`,
+      [physio.id]
+    );
+
+    // Return combined data
+    res.status(200).json({
+      notes: physio.notes,
+      lastUpdatedBy: physio.last_updated_by,
+      lastUpdatedAt: physio.last_updated_at,
+      createdAt: physio.created_at,
+      painpoints: painpointRows.map(pp => ({
+        id: pp.id,
+        xCoord: pp.x_coord,
+        yCoord: pp.y_coord,
+        lastUpdatedBy: pp.last_updated_by,
+        lastUpdatedAt: pp.last_updated_at,
+        createdAt: pp.created_at,
+      })),
+    });
+
+  } catch (err) {
+    console.error("❌ Error upserting physiotherapy:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
