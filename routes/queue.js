@@ -25,7 +25,7 @@ router.get('/', authenticateToken, requireRole(['any']), async (req, res) => {
                 TO_CHAR(v.created_at, 'HH:MI AM') AS timestamp
             FROM visits v
             JOIN patients p ON v.patient_id = p.id
-            WHERE v.location_id = $1 AND v.visit_date = $2
+            WHERE v.location_id = $1 AND v.visit_date::date = $2::date
             ORDER BY v.created_at ASC;
         `;
         const result = await db.query(queryText, [location_id, date]);

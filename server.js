@@ -25,7 +25,7 @@ const limiter = rateLimit({
   max: 100, // How many requests from each IP per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
-app.use('/api/', limiter);
+// app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(bodyParser.json());
