@@ -196,18 +196,19 @@ CREATE TABLE painpoints (
 -- Referral
 CREATE TABLE referral (
     id SERIAL PRIMARY KEY,
-    consultation_id INT NOT NULL REFERENCES consultation(id)
+    visit_id INT NOT NULL REFERENCES visits(id)
         ON DELETE CASCADE ON UPDATE CASCADE,
     referral_date DATE NOT NULL,
     referral_type TEXT NOT NULL,
     illness VARCHAR(255) NOT NULL,
     duration VARCHAR(255) NOT NULL,
     reason TEXT NOT NULL,
-    doctor_name VARCHAR(255) NOT NULL,
     last_updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
     last_updated_by INT NOT NULL REFERENCES users(id) ON UPDATE CASCADE,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT referral_visit_unique UNIQUE (visit_id) -- ensures one referral per visit
 );
+
 
 -- Pharmacy
 CREATE TABLE pharmacy (
@@ -221,3 +222,16 @@ CREATE TABLE pharmacy (
     created_at TIMESTAMP DEFAULT NOW(),
     UNIQUE (location_id, drug_name)
 );
+
+CREATE OR REPLACE FUNCTION delete_referrals_on_consultation_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+    DELETE FROM referral WHERE visit_id = OLD.visit_id;
+    RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_delete_referrals
+AFTER DELETE ON consultation
+FOR EACH ROW
+EXECUTE FUNCTION delete_referrals_on_consultation_delete();

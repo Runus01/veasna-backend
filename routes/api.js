@@ -10,7 +10,7 @@ const patientsRoutes = require('./patients');
 const locationRoutes = require('./locations');
 const registrationRoutes = require('./registration');
 const queueRoutes = require('./queue');
-const visitRoutes = require('./visits')
+const visitRoutes = require('./visits');
 const pharmacyRoutes = require('./pharmacy');
 const triageRoutes = require('./triage');
 
