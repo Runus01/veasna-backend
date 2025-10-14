@@ -236,7 +236,7 @@ router.get('/presenting-complaint/:id/:visit_id', authenticateToken, requireRole
 });
 
 // === SEVA === //
-// Get
+// GET: seva
 router.get("/seva/:visit_id", authenticateToken, async (req, res) => {
   const { visit_id } = req.params;
 
@@ -278,7 +278,7 @@ router.get("/seva/:visit_id", authenticateToken, async (req, res) => {
   }
 });
 
-// Add or update
+// UPSERT: seva
 router.post('/seva/:visit_id', authenticateToken, async (req, res) => {
   const { visit_id } = req.params;
 
@@ -351,8 +351,7 @@ router.post('/seva/:visit_id', authenticateToken, async (req, res) => {
 
 // === PHYSIOTHERAPY === //
 
-// GET physiotherapy by visit_id
-// GET physiotherapy by visit_id, including painpoints
+// GET physiotherapy
 router.get("/physiotherapy/:visit_id", authenticateToken, async (req, res) => {
   const { visit_id } = req.params;
 
@@ -426,7 +425,7 @@ router.get("/physiotherapy/:visit_id", authenticateToken, async (req, res) => {
 });
 
 
-// POST physiotherapy by visit_id (add & update)
+// UPSERT physiotherapy
 router.post("/physiotherapy/:visit_id", authenticateToken, async (req, res) => {
   const { visit_id } = req.params;
 
@@ -490,6 +489,170 @@ router.post("/physiotherapy/:visit_id", authenticateToken, async (req, res) => {
 
   } catch (err) {
     console.error("❌ Error upserting physiotherapy:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// === DOCTOR'S CONSULTATION == //
+
+// GET: consultation
+router.get("/consultation/:visit_id", authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  // Validate visit_id
+  const visitIdNum = parseInt(visit_id, 10);
+  if (isNaN(visitIdNum)) {
+    return res.status(400).json({ error: "Invalid visit_id" });
+  }
+
+  const query = `
+    SELECT
+      c.id,
+      c.visit_id,
+      c.notes,
+      c.prescription,
+      c.require_referral,
+      c.last_updated_by,
+      c.last_updated_at,
+      c.created_at,
+      r.referral_type,
+      r.illness,
+      r.duration,
+      r.reason,
+      r.referral_date
+    FROM consultation c
+    LEFT JOIN referral r ON r.visit_id = c.visit_id
+    WHERE c.visit_id = $1;
+  `;
+
+  try {
+    const { rows } = await db.query(query, [visitIdNum]);
+
+    if (rows.length === 0) {
+      return res.status(200).json(null);
+    }
+
+    const row = rows[0];
+
+    // Optional: generate a weak ETag based on last_updated_at + id
+    const etag = `"${row.id}-${new Date(row.last_updated_at).getTime()}"`;
+    if (req.headers["if-none-match"] === etag) {
+      return res.status(304).end();
+    }
+
+    res.setHeader("ETag", etag);
+    res.status(200).json(row);
+  } catch (err) {
+    console.error("❌ Error fetching consultation record:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// UPSERT: consultation
+router.post('/consultation/:visit_id', authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  if (!visit_id) {
+    return res.status(400).json({ error: "visit_id is required" });
+  }
+
+  const {
+    notes,
+    prescription,
+    require_referral,
+  } = req.body;
+
+  const last_updated_by = req.user.id;
+
+  const query = `
+    INSERT INTO consultation (
+      visit_id,
+      notes,
+      prescription,
+      require_referral,
+      last_updated_by
+    )
+    VALUES ($1, $2, $3, $4, $5)
+    ON CONFLICT (visit_id) DO UPDATE SET
+      notes = EXCLUDED.notes,
+      prescription = EXCLUDED.prescription,
+      require_referral = EXCLUDED.require_referral,
+      last_updated_by = EXCLUDED.last_updated_by,
+      last_updated_at = NOW()
+    RETURNING *;
+  `;
+
+  try {
+    const { rows } = await db.query(query, [
+      visit_id,
+      notes,
+      prescription,
+      require_referral,
+      last_updated_by,
+    ]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Consultation record not found or not created" });
+    }
+
+    res.status(200).json(rows[0]);
+  } catch (err) {
+    console.error("❌ Error upserting consultation:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// UPSERT: referral
+router.post("/referral/:visit_id", authenticateToken, async (req, res) => {
+  const { visit_id } = req.params;
+
+  if (!visit_id) {
+    return res.status(400).json({ error: "visit_id is required" });
+  }
+
+  const { referralDate, referralType, illness, duration, reason } = req.body;
+  const last_updated_by = req.user.id;
+
+  const query = `
+    INSERT INTO referral (
+      visit_id,
+      referral_date,
+      referral_type,
+      illness,
+      duration,
+      reason,
+      last_updated_by
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    ON CONFLICT (visit_id) DO UPDATE SET
+      referral_date = EXCLUDED.referral_date,
+      referral_type = EXCLUDED.referral_type,
+      illness = EXCLUDED.illness,
+      duration = EXCLUDED.duration,
+      reason = EXCLUDED.reason,
+      last_updated_by = EXCLUDED.last_updated_by,
+      last_updated_at = NOW()
+    RETURNING *;
+  `;
+
+  try {
+    const { rows } = await db.query(query, [
+      visit_id,
+      referralDate,
+      referralType,
+      illness,
+      duration,
+      reason,
+      last_updated_by,
+    ]);
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Referral record not created or found" });
+    }
+
+    res.status(200).json(rows[0]);
+  } catch (err) {
+    console.error("❌ Error upserting referral:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
