@@ -1,7 +1,6 @@
 // tests/basic.test.js
 
 const request = require('supertest');
-const express = require('express');
 const app = require('../server');
 
 describe('Basic API Tests', () => {
@@ -16,4 +15,4 @@ describe('Basic API Tests', () => {
     expect(response.status).toBe(404);
     expect(response.body).toHaveProperty('message', 'Route not found');
   });
-}); 
+});

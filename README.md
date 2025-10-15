@@ -7,13 +7,19 @@ A Node.js/Express backend API for managing clinical patient data, optimized for 
 - **Public-first Access** (JWT optional; routes accept requests without tokens)
 - **Simple User Creation** (username only; no password)
 - **Comprehensive Patient Management** (CRUD operations)
-- **Vitals Tracking** (height, weight, BMI, blood pressure, temperature)
+- **Visit-Centric Data Model** — clinical entries attach to a **visit**
+- **Vitals Tracking** (height, weight, BMI, **bp_systolic**, **bp_diastolic**, blood pressure, temperature)
 - **HEF, Visual Acuity, Presenting Complaint, History, Consultation, Referral, Physiotherapy** modules
+- **Automatic Visit Creation** when adding vitals/HEF/visual acuity/presenting complaint/history/consultation/referral/physiotherapy (if you provide `{ location_id, queue_no, visit_date? }`)
+- **Advanced Search by Location + Date** (returns patients with `queue_no`/`visit_date`)
+- **Combined Endpoint** to fetch **Vitals + HEF** grouped by visit
+- **Pharmacy Inventory** (CRUD + stock adjustments)
 - **Input Validation** and error handling
 - **Rate Limiting** and security middleware
 - **PostgreSQL Database** with connection pooling
 - **Separate Locations Table** (screening sites)
-- **Queue Numbers** stored on both `visits` and mirrored on `patients`
+- **Queue Numbers stored on `visits` only**; uniqueness per patient per date (`UNIQUE (patient_id, visit_date, queue_no)`)
+- **Face ID** support on patients (`patients.face_id`, unique)
 
 ## 📋 Prerequisites
 
@@ -90,43 +96,73 @@ npm start
 
 The server will start on `http://localhost:3000`
 
+## 📚 Conventions & Schema (Standardized)
+
+- **Field naming**: `snake_case` for DB and JSON.
+- **IDs**: integers unless stated otherwise.
+- **Dates**: `YYYY-MM-DD` (no time).
+- **Timestamps**: ISO 8601 with timezone (`last_updated` is server-generated).
+- **Audit**: `last_updated_by` is the authenticated `users.id` or `null` (public).
+- **Visit Linking**: For clinical tables (vitals, hef, visual_acuity, presenting_complaint, history, consultation, referral, physiotherapy) provide **either**:
+  - an existing `visit_id`, **or**
+  - `{ location_id, queue_no, visit_date? }` to create/reuse a visit for that patient.
+- **`queue_no` format**: digits with optional uppercase suffix (e.g. `2`, `10A`), regex `^[0-9]+[A-Z]*$`.
+- **Key schema fields** (from `db_setup.sql`):
+  - `patients`: `id`, `face_id` (UNIQUE), `english_name`, `khmer_name`, `date_of_birth`, `sex`, `phone_number`, `address`, `location_id`, `last_updated`, `last_updated_by`
+  - `visits`: `id`, `patient_id`, `location_id`, `visit_date`, `queue_no`, `status`, `last_updated`, `last_updated_by`, **UNIQUE**(`patient_id`, `visit_date`, `queue_no`)
+  - `vitals`: `id`, `visit_id`, `height_cm`, `weight_kg`, `bmi`, `bp_systolic`, `bp_diastolic`, `blood_pressure`, `temperature_c`, `vitals_notes`, `last_updated`, `last_updated_by`
+  - `hef`: `id`, `visit_id`, `know_hef`, `have_hef`, `hef_notes`, `last_updated`, `last_updated_by`
+  - `visual_acuity`: `id`, `visit_id`, `left_pin`, `left_no_pin`, `right_pin`, `right_no_pin`, `visual_notes`, `last_updated`, `last_updated_by`
+  - `presenting_complaint`: `id`, `visit_id`, `history`, `red_flags`, `systems_review`, `drug_allergies`, `last_updated`, `last_updated_by`
+  - `history`: `id`, `visit_id`, `past`, `drug_and_treatment`, `family`, `social`, `systems_review`, `last_updated`, `last_updated_by`
+  - `consultation`: `id`, `visit_id`, `doctor_id`, `consultation_notes`, `prescription`, `last_updated`, `last_updated_by`
+  - `referral`: `id`, `visit_id`, `doctor_id`, `consultation_id`, `referral_date`, `referral_symptom`, `referral_symptom_duration`, `referral_reason`, `referral_type`, `last_updated`, `last_updated_by`
+  - `physiotherapy`: `id`, `visit_id`, `doctor_id`, `pain_areas_description`, `last_updated`, `last_updated_by`
+  - `pharmacy`: `id`, `name` (UNIQUE), `stock_level`, `last_updated`, `last_updated_by`
+
 ## 🔐 API Endpoints (Summary)
 
-| Method | Endpoint                                   | Description                                                  | Roles  |
-|--------|--------------------------------------------|--------------------------------------------------------------|--------|
-| POST   | /api/users                                 | Create username-only user                                    | Public |
-| POST   | /api/session/login                         | (Optional) passwordless login, returns JWT                   | Public |
-| GET    | /api/locations                             | List screening locations                                     | Public |
-| GET    | /api/patients                              | List all patients (filter by location)                       | Public |
-| POST   | /api/patients                              | Create new patient (requires location_id)                    | Public |
-| GET    | /api/patients/:id                          | Get patient by ID                                            | Public |
-| PUT    | /api/patients/:id                          | Update patient                                               | Public |
-| DELETE | /api/patients/:id                          | Delete patient                                               | Public |
-| POST   | /api/patients/:id/vitals                   | Add vitals for patient                                       | Public |
-| PUT    | /api/patients/:id/vitals/:vitalsId         | Update vitals                                                | Public |
-| DELETE | /api/patients/:id/vitals/:vitalsId         | Delete vitals                                                | Public |
-| GET    | /api/patients/:id/vitals                   | List vitals for patient                                      | Public |
-| POST   | /api/patients/:id/hef                      | Add HEF record                                               | Public |
-| PUT    | /api/patients/:id/hef/:hefId               | Update HEF record                                            | Public |
-| DELETE | /api/patients/:id/hef/:hefId               | Delete HEF record                                            | Public |
-| GET    | /api/patients/:id/hef                      | List HEF records                                             | Public |
-| POST   | /api/patients/:id/visual_acuity            | Add visual acuity record                                     | Public |
-| GET    | /api/patients/:id/visual_acuity            | List visual acuity records                                   | Public |
-| POST   | /api/patients/:id/presenting_complaint     | Add presenting complaint                                     | Public |
-| GET    | /api/patients/:id/presenting_complaint     | List presenting complaints                                   | Public |
-| POST   | /api/patients/:id/history                  | Add history record                                           | Public |
-| GET    | /api/patients/:id/history                  | List history records                                         | Public |
-| POST   | /api/patients/:id/consultations            | Create consultation                                          | Public |
-| GET    | /api/patients/:id/consultations            | List consultations for patient                               | Public |
-| POST   | /api/consultations/:id/referrals           | Add referral to consultation                                 | Public |
-| GET    | /api/consultations/:id/referrals           | List referrals for consultation                              | Public |
-| POST   | /api/patients/:id/physiotherapy            | Add physiotherapy record                                     | Public |
-| GET    | /api/patients/:id/physiotherapy            | List physiotherapy records                                   | Public |
-| POST   | /api/registration                          | Combined create (patient + vitals + HEF + visit)             | Public |
-| PUT    | /api/registration/:patientId               | Combined update (patient + optional append vitals/HEF/visit) | Public |
-| DELETE | /api/registration/:patientId               | Combined delete patient (cascades)                           | Public |
-| PUT    | /api/visits/:id                            | Update visit queue_no and mirror to patient                  | Public |
-
+| Method | Endpoint                                   | Description                                                                 | Roles  |
+|--------|--------------------------------------------|-----------------------------------------------------------------------------|--------|
+| POST   | /api/users                                 | Create username-only user                                                   | Public |
+| POST   | /api/session/login                         | (Optional) passwordless login, returns JWT                                  | Public |
+| GET    | /api/locations                             | List screening locations                                                    | Public |
+| GET    | /api/patients                              | List all patients (filter by location)                                      | Public |
+| POST   | /api/patients                              | Create new patient (supports optional `face_id`)                            | Public |
+| GET    | /api/patients/:id                          | Get patient by ID                                                           | Public |
+| PUT    | /api/patients/:id                          | Update patient (incl. `face_id`)                                            | Public |
+| DELETE | /api/patients/:id                          | Delete patient                                                              | Public |
+| GET    | /api/visits/by-location-and-date           | **New**: Patients by `location_id` + `visit_date` with each `queue_no`      | Public |
+| PUT    | /api/visits/:id                            | Update visit `queue_no`                                                     | Public |
+| POST   | /api/patients/:id/vitals                   | Add vitals (visit required or auto-create via `{location_id, queue_no}`)    | Public |
+| PUT    | /api/patients/:id/vitals/:vitalsId         | Update vitals                                                               | Public |
+| DELETE | /api/patients/:id/vitals/:vitalsId         | Delete vitals                                                               | Public |
+| GET    | /api/patients/:id/vitals                   | List vitals for patient                                                     | Public |
+| POST   | /api/patients/:id/hef                      | Add HEF (visit required or auto-create)                                     | Public |
+| PUT    | /api/patients/:id/hef/:hefId               | Update HEF                                                                  | Public |
+| DELETE | /api/patients/:id/hef/:hefId               | Delete HEF                                                                  | Public |
+| GET    | /api/patients/:id/hef                      | List HEF records                                                            | Public |
+| POST   | /api/patients/:id/visual_acuity            | Add visual acuity (visit required or auto-create)                           | Public |
+| GET    | /api/patients/:id/visual_acuity            | List visual acuity records                                                  | Public |
+| POST   | /api/patients/:id/presenting_complaint     | Add presenting complaint (visit required or auto-create)                    | Public |
+| GET    | /api/patients/:id/presenting_complaint     | List presenting complaints                                                  | Public |
+| POST   | /api/patients/:id/history                  | Add history (visit required or auto-create)                                 | Public |
+| GET    | /api/patients/:id/history                  | List history                                                                | Public |
+| POST   | /api/patients/:id/consultations            | Create consultation (visit required or auto-create)                          | Public |
+| GET    | /api/patients/:id/consultations            | List consultations for patient                                              | Public |
+| POST   | /api/consultations/:id/referrals           | Add referral to consultation (visit inferred from consultation)             | Public |
+| GET    | /api/consultations/:id/referrals           | List referrals for consultation                                             | Public |
+| POST   | /api/patients/:id/physiotherapy            | Add physiotherapy (visit required or auto-create)                           | Public |
+| GET    | /api/patients/:id/physiotherapy            | List physiotherapy                                                          | Public |
+| GET    | /api/patients/:id/vitals-hef               | **New**: Combined vitals + HEF grouped by visit                             | Public |
+| GET    | /api/pharmacy                              | **New**: List pharmacy items                                                | Public |
+| POST   | /api/pharmacy                              | **New**: Create pharmacy item                                               | Public |
+| PUT    | /api/pharmacy/:id                          | **New**: Rename and/or set stock (clamped to ≥ 0)                           | Public |
+| PATCH  | /api/pharmacy/:id/adjust                   | **New**: Adjust stock by delta (positive/negative, clamped to ≥ 0)          | Public |
+| DELETE | /api/pharmacy/:id                          | **New**: Delete pharmacy item                                               | Public |
+| POST   | /api/registration                          | Combined create (patient + optional visit + vitals + HEF)                   | Public |
+| PUT    | /api/registration/:patientId               | Combined update (patient + optional append vitals/HEF/visit)                | Public |
+| DELETE | /api/registration/:patientId               | Combined delete patient (cascades)                                          | Public |
 
 For full request/response details, see [API_DOCUMENTATION.md](./API_DOCUMENTATION.md).
 
