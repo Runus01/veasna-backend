@@ -2,16 +2,27 @@
 
 const express = require('express');
 const router = express.Router();
+const { query } = require('express-validator');
 
 const sessionRoutes = require('./session');
-const patientRoutes = require('./patients');
+const patientRoutes = require('./patient');
+const patientsRoutes = require('./patients');
 const locationRoutes = require('./locations');
 const registrationRoutes = require('./registration');
+const queueRoutes = require('./queue');
+const visitRoutes = require('./visits');
+const pharmacyRoutes = require('./pharmacy');
+const triageRoutes = require('./triage');
 
 router.use('/auth', sessionRoutes);
-router.use('/patients', patientRoutes);
 router.use('/locations', locationRoutes);
 router.use('/registration', registrationRoutes);
+router.use('/queue', queueRoutes);
+router.use('/visits', visitRoutes);
+router.use('/patients', patientsRoutes)
+router.use('/pharmacy', pharmacyRoutes);
+router.use('/triage', triageRoutes);
+router.use('/patient', patientRoutes);
 
 const { body } = require('express-validator');
 const db = require('../config/db');
@@ -19,14 +30,17 @@ const { authenticateToken, requireRole, validateRequest } = require('./auth');
 
 // --- User Management (any authenticated user) ---
 
-// GET all users (no auth)
+// GET all users
 router.get('/users', async (req, res) => {
+  console.log('Querying users');
   try {
     const { rows } = await db.query(
       `SELECT username
        FROM users
+       WHERE is_active = TRUE
        ORDER BY created_at DESC`
     );
+    console.log('Rows:', rows);
     res.json(rows);
   } catch (error) {
     console.error('Get Users Error:', error);
@@ -38,25 +52,141 @@ router.get('/users', async (req, res) => {
 router.post(
   '/users',
   [
-    body('username').isLength({ min: 3 }).withMessage('Username must be at least 3 characters'),
+    body('username')
+      .isLength({ min: 2 })
+      .withMessage('Username must be at least 2 characters'),
   ],
   validateRequest,
   async (req, res) => {
     const { username } = req.body;
+
+    try {
+      // 1️⃣ Check if user already exists
+      const checkQuery = 'SELECT id, is_active FROM users WHERE username = $1';
+      const { rows: existingUsers } = await db.query(checkQuery, [username]);
+
+      if (existingUsers.length === 0) {
+        // 2️⃣ User does not exist → create
+        const insertQuery = `
+          INSERT INTO users (username, is_active)
+          VALUES ($1, TRUE)
+          RETURNING id, username, is_active, created_at;
+        `;
+        const { rows } = await db.query(insertQuery, [username]);
+        return res.status(201).json({
+          message: 'User successfully created',
+          user: rows[0],
+        });
+      }
+
+      // 3️⃣ User exists
+      const existingUser = existingUsers[0];
+
+      if (!existingUser.is_active) {
+        // 4️⃣ User exists but inactive → activate
+        const updateQuery = `
+          UPDATE users
+          SET is_active = TRUE,
+              last_updated_at = NOW()
+          WHERE id = $1
+          RETURNING id, username, is_active, created_at;
+        `;
+        const { rows } = await db.query(updateQuery, [existingUser.id]);
+        return res.status(200).json({
+          message: 'User successfully activated',
+          user: rows[0],
+        });
+      }
+
+      // 5️⃣ User exists and already active → just return
+      return res.status(200).json({
+        message: 'User already active',
+        user: existingUser,
+      });
+
+    } catch (error) {
+      console.error('Create/Activate User Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+);
+
+// PATCH /users/deactivate
+router.patch(
+  '/users/deactivate',
+  [
+    body('username')
+      .isLength({ min: 2 })
+      .withMessage('Username must be at least 2 characters'),
+  ],
+  validateRequest,
+  async (req, res) => {
+    const { username } = req.body;
+    const values = [username]; // Parameters array
+
+    // Define SQL queries as constants
+    const SELECT_USER = `
+      SELECT id, username, is_active
+      FROM users
+      WHERE username = $1e
+    `;
+
+    const DEACTIVATE_USER = `
+      UPDATE users
+      SET is_active = FALSE,
+          last_updated_at = NOW()
+      WHERE username = $1
+      RETURNING id, username, is_active, created_at, last_updated_at
+    `;
+
+    try {
+      // 1️⃣ Check if user exists
+      const { rows: users } = await db.query(SELECT_USER, values);
+
+      if (users.length === 0) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const user = users[0];
+
+      if (!user.is_active) {
+        // 2️⃣ User already inactive
+        return res.status(200).json({
+          message: 'User already inactive',
+          user,
+        });
+      }
+
+      // 3️⃣ Deactivate user
+      const { rows } = await db.query(DEACTIVATE_USER, values);
+
+      return res.status(200).json({
+        message: 'User successfully deactivated',
+        user: rows[0],
+      });
+    } catch (error) {
+      console.error('Deactivate User Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+);
+
+// -- Location Management --
+router.get(
+  '/locations',
+  async (req, res) => {
     try {
       const query = `
-        INSERT INTO users(username)
-        VALUES ($1)
-        RETURNING id, username;
+        SELECT name
+        FROM locations
+        WHERE is_active = TRUE
+        ORDER BY name ASC;
       `;
-      const values = [username];
-      const { rows } = await db.query(query, values);
-      res.status(201).json({ message: 'User created successfully', user: rows[0] });
+
+      const { rows } = await db.query(query);
+      res.json(rows);
     } catch (error) {
-      console.error('Create User Error:', error);
-      if (error.code === '23505') {
-        return res.status(409).json({ message: 'Username already exists.' });
-      }
+      console.error('Get Locations Error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   }
@@ -64,78 +194,161 @@ router.post(
 
 // --- Patient Management ---
 
-// Create a new patient
-router.post('/patients', [
-  authenticateToken,
-  requireRole(['any']),
-  body('english_name').notEmpty().withMessage('English name is required'),
-  body('date_of_birth').isISO8601().withMessage('Valid date of birth is required'),
-  body('sex').isIn(['male', 'female', 'other']).withMessage('Valid sex is required'),
-  body('location_id').isInt({ min: 1 }).withMessage('location_id is required'),
-], validateRequest, async (req, res) => {
-  try {
-    const { english_name, khmer_name, date_of_birth, sex, phone_number, address, location_id, queue_no } = req.body;
-    const query = `
-      INSERT INTO patients(english_name, khmer_name, date_of_birth, sex, phone_number, address, location_id, queue_no)
-      VALUES($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *;
-    `;
-    const values = [english_name, khmer_name, date_of_birth, sex, phone_number, address, location_id, queue_no ? String(queue_no).toUpperCase() : null];
-    const { rows } = await db.query(query, values);
-    res.status(201).json(rows[0]);
-  } catch (error) {
-    console.error('Create Patient Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-});
+// POST create a new patient
+router.post(
+  '/patients',
+  [
+    body('face_id').notEmpty().withMessage('Face ID is required'),
+    body('location_id').notEmpty().isInt({ min: 1 }).withMessage('Valid location_id is required'),
+    body('date_of_birth').notEmpty().isISO8601().withMessage('Valid date of birth is required'),
+    body('sex').notEmpty().isIn(['Male', 'Female']).withMessage('Valid sex is required'),
+    body('user_id').notEmpty().isInt({ min: 1 }).withMessage('Valid user ID is required'),
+  ],
+  validateRequest,
+  async (req, res) => {
+    try {
+      const {
+        face_id,
+        location_id,
+        english_name,
+        khmer_name,
+        date_of_birth,
+        sex,
+        address,
+        phone_number,
+        user_id,
+      } = req.body;
 
-// Get all patients (filter by location_id or location name)
-router.get('/patients', [authenticateToken, requireRole(['any'])], async (req, res) => {
-  try {
-    const { location_id, location } = req.query;
+      const query = `
+        INSERT INTO patients (
+          face_id,
+          location_id,
+          english_name,
+          khmer_name,
+          date_of_birth,
+          sex,
+          address,
+          phone_number,
+          last_updated_by,
+          last_updated_at,
+          created_at
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
+        RETURNING *;
+      `;
 
-    let sql = `
-      SELECT p.*, l.name AS location_name
-      FROM patients p
-      JOIN locations l ON l.id = p.location_id
-    `;
-    const vals = [];
+      const values = [
+        face_id,
+        location_id,
+        english_name || null,
+        khmer_name || null,
+        date_of_birth || null,
+        sex || null,
+        address || null,
+        phone_number || null,
+        user_id,
+      ];
 
-    if (location_id) {
-      sql += ' WHERE p.location_id = $1';
-      vals.push(Number(location_id));
-    } else if (location) {
-      sql += ' WHERE LOWER(l.name) = LOWER($1)';
-      vals.push(location);
+      const { rows } = await db.query(query, values);
+      res.status(201).json({
+        message: 'Patient created successfully',
+        patient: rows[0],
+      });
+    } catch (error) {
+      console.error('Create Patient Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
     }
-
-    sql += ' ORDER BY p.created_at DESC';
-
-    const result = await db.query(sql, vals);
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Get Patients Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
   }
-});
+);
 
-// Get a single patient by ID
-router.get('/patients/:id', [authenticateToken, requireRole(['any'])], async (req, res) => {
-  try {
-    const { rows } = await db.query(
-      `SELECT p.*, l.name AS location_name
-         FROM patients p
-         JOIN locations l ON l.id = p.location_id
-        WHERE p.id = $1`,
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ message: 'Patient not found' });
-    res.json(rows[0]);
-  } catch (error) {
-    console.error('Get Patient Error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+
+// GET all patients (filter by location_id)
+router.get(
+  '/patients',
+  async (req, res) => {
+    try {
+      const { location_id } = req.query;
+
+      if (!location_id) {
+        return res.status(400).json({ message: 'Location ID is required'})
+      }
+
+      const sql = `
+        SELECT
+          p.face_id,
+          p.english_name,
+          p.khmer_name,
+          p.date_of_birth,
+          p.sex,
+          p.address,
+          p.phone_number,
+          p.last_updated_at,
+          p.last_updated_by
+        FROM patients p
+        WHERE p.location_id = $1
+        ORDER BY p.created_at DESC;
+      `;
+
+      const vals = [Number(location_id)];
+      const result = await db.query(sql, vals);
+
+      res.json({
+        message: 'Patients fetched successfully',
+        patients: result.rows,
+      });
+    } catch (error) {
+      console.error('Get Patients Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
   }
-});
+);
+
+// GET: today's patients (by location_id and visit_date)
+router.get(
+  '/patients/today',
+  [
+    query('location_id')
+      .notEmpty().isInt({ min: 1 }).withMessage('Valid location_id is required'),
+    query('visit_date')
+      .optional() // if not provided, default to today
+      .isISO8601().withMessage('Valid visit_date is required'),
+  ],
+  validateRequest,
+  async (req, res) => {
+    try {
+      const location_id = Number(req.query.location_id);
+      const visit_date = req.query.visit_date || new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+      const sql = `
+        SELECT
+          p.face_id,
+          p.english_name,
+          p.khmer_name,
+          p.date_of_birth,
+          p.sex,
+          p.address,
+          p.phone_number,
+          v.queue_no
+        FROM patients p
+        JOIN visits v ON v.patient_id = p.id
+        WHERE p.location_id = $1
+          AND v.visit_date = $2
+        ORDER BY v.queue_no ASC;
+      `;
+
+      const result = await db.query(sql, [location_id, visit_date]);
+
+      res.json({
+        message: 'Patients fetched successfully',
+        visit_date,
+        patients: result.rows,
+      });
+    } catch (error) {
+      console.error('Get Today Patients Error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  }
+);
 
 // Update patient info
 router.put('/patients/:id', [

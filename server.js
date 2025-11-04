@@ -7,6 +7,7 @@ const rateLimit = require('express-rate-limit');
 const bodyParser = require('body-parser');
 
 const app = express();
+app.set("etag", "strong");
 const PORT = process.env.PORT || 3000;
 
 // Security middleware
@@ -14,17 +15,18 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: process.env.NEXT_PUBLIC_FRONTEND_URL || 'http://localhost:3001',
   credentials: true
 }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes windowMs
-  max: 100, // How many requests from each IP per windowMs
+  windowMs: 1 * 60 * 1000, // 15 minutes windowMs
+  max: 200, // How many requests from each IP per windowMs
   message: 'Too many requests from this IP, please try again later.'
 });
-app.use('/api/', limiter);
+// Removed limiter
+// app.use('/api/', limiter);
 
 // Body parsing middleware
 app.use(bodyParser.json());
