@@ -56,7 +56,7 @@ app.use((err, req, res, next) => {
 });
 
 // When using 'npm test' comment out this part
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
 });

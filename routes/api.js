@@ -13,6 +13,8 @@ const queueRoutes = require('./queue');
 const visitRoutes = require('./visits');
 const pharmacyRoutes = require('./pharmacy');
 const triageRoutes = require('./triage');
+const exportRoutes = require('./export');
+const referralRoutes = require('./referrals');
 
 router.use('/auth', sessionRoutes);
 router.use('/locations', locationRoutes);
@@ -23,6 +25,8 @@ router.use('/patients', patientsRoutes)
 router.use('/pharmacy', pharmacyRoutes);
 router.use('/triage', triageRoutes);
 router.use('/patient', patientRoutes);
+router.use('/export',exportRoutes);
+router.use('/referrals', referralRoutes);
 
 const { body } = require('express-validator');
 const db = require('../config/db');
@@ -48,68 +52,68 @@ router.get('/users', async (req, res) => {
   }
 });
 
-// POST create a new user (no auth)
-router.post(
-  '/users',
-  [
-    body('username')
-      .isLength({ min: 2 })
-      .withMessage('Username must be at least 2 characters'),
-  ],
-  validateRequest,
-  async (req, res) => {
-    const { username } = req.body;
+// // POST create a new user (no auth)
+// router.post(
+//   '/users',
+//   [
+//     body('username')
+//       .isLength({ min: 2 })
+//       .withMessage('Username must be at least 2 characters'),
+//   ],
+//   validateRequest,
+//   async (req, res) => {
+//     const { username } = req.body;
 
-    try {
-      // 1️⃣ Check if user already exists
-      const checkQuery = 'SELECT id, is_active FROM users WHERE username = $1';
-      const { rows: existingUsers } = await db.query(checkQuery, [username]);
+//     try {
+//       // 1️⃣ Check if user already exists
+//       const checkQuery = 'SELECT id, is_active FROM users WHERE username = $1';
+//       const { rows: existingUsers } = await db.query(checkQuery, [username]);
 
-      if (existingUsers.length === 0) {
-        // 2️⃣ User does not exist → create
-        const insertQuery = `
-          INSERT INTO users (username, is_active)
-          VALUES ($1, TRUE)
-          RETURNING id, username, is_active, created_at;
-        `;
-        const { rows } = await db.query(insertQuery, [username]);
-        return res.status(201).json({
-          message: 'User successfully created',
-          user: rows[0],
-        });
-      }
+//       if (existingUsers.length === 0) {
+//         // 2️⃣ User does not exist → create
+//         const insertQuery = `
+//           INSERT INTO users (username, is_active)
+//           VALUES ($1, TRUE)
+//           RETURNING id, username, is_active, created_at;
+//         `;
+//         const { rows } = await db.query(insertQuery, [username]);
+//         return res.status(201).json({
+//           message: 'User successfully created',
+//           user: rows[0],
+//         });
+//       }
 
-      // 3️⃣ User exists
-      const existingUser = existingUsers[0];
+//       // 3️⃣ User exists
+//       const existingUser = existingUsers[0];
 
-      if (!existingUser.is_active) {
-        // 4️⃣ User exists but inactive → activate
-        const updateQuery = `
-          UPDATE users
-          SET is_active = TRUE,
-              last_updated_at = NOW()
-          WHERE id = $1
-          RETURNING id, username, is_active, created_at;
-        `;
-        const { rows } = await db.query(updateQuery, [existingUser.id]);
-        return res.status(200).json({
-          message: 'User successfully activated',
-          user: rows[0],
-        });
-      }
+//       if (!existingUser.is_active) {
+//         // 4️⃣ User exists but inactive → activate
+//         const updateQuery = `
+//           UPDATE users
+//           SET is_active = TRUE,
+//               last_updated_at = NOW()
+//           WHERE id = $1
+//           RETURNING id, username, is_active, created_at;
+//         `;
+//         const { rows } = await db.query(updateQuery, [existingUser.id]);
+//         return res.status(200).json({
+//           message: 'User successfully activated',
+//           user: rows[0],
+//         });
+//       }
 
-      // 5️⃣ User exists and already active → just return
-      return res.status(200).json({
-        message: 'User already active',
-        user: existingUser,
-      });
+//       // 5️⃣ User exists and already active → just return
+//       return res.status(200).json({
+//         message: 'User already active',
+//         user: existingUser,
+//       });
 
-    } catch (error) {
-      console.error('Create/Activate User Error:', error);
-      res.status(500).json({ message: 'Internal server error' });
-    }
-  }
-);
+//     } catch (error) {
+//       console.error('Create/Activate User Error:', error);
+//       res.status(500).json({ message: 'Internal server error' });
+//     }
+//   }
+// );
 
 // PATCH /users/deactivate
 router.patch(
