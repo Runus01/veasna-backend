@@ -453,6 +453,42 @@ router.get('/visit/:id', authenticateToken, requireRole(['any']), async (req, re
       console.error('Error fetching visit data:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
-  });
+});
+
+// DELETE /api/patient/:id - Delete patient and all associated data
+router.delete('/:id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Patient ID is required' });
+  }
+
+  try {
+    // Check if patient exists
+    const checkQuery = 'SELECT id, english_name FROM patients WHERE id = $1';
+    const checkResult = await db.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const patient = checkResult.rows[0];
+
+    // Delete patient (CASCADE will handle all related records)
+    const deleteQuery = 'DELETE FROM patients WHERE id = $1 RETURNING id';
+    const deleteResult = await db.query(deleteQuery, [id]);
+
+    console.log(`✅ Deleted patient ${id} (${patient.english_name}) and all associated data`);
+
+    res.status(200).json({
+      message: 'Patient and all associated records deleted successfully',
+      deleted_patient_id: deleteResult.rows[0].id
+    });
+
+  } catch (err) {
+    console.error('Error deleting patient:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 module.exports = router;
