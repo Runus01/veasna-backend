@@ -4,6 +4,54 @@ const router = express.Router();
 const db = require('../config/db');
 const { authenticateToken, requireRole } = require('../routes/auth');
 
+
+// GET /api/patient/search?name=... - Search for patient by name
+router.get('/search', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { name } = req.query;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Search name is required' });
+  }
+
+  const searchTerm = name.trim().toLowerCase();
+
+  try {
+    // Search by English name OR Khmer name (case-insensitive)
+    const searchQuery = `
+      SELECT 
+        id,
+        face_id,
+        location_id,
+        english_name,
+        khmer_name,
+        date_of_birth,
+        sex,
+        address,
+        phone_number,
+        last_updated_at,
+        created_at
+      FROM patients
+      WHERE 
+        LOWER(english_name) LIKE $1 OR 
+        LOWER(khmer_name) LIKE $1
+      ORDER BY last_updated_at DESC
+      LIMIT 10
+    `;
+
+    const result = await db.query(searchQuery, [`%${searchTerm}%`]);
+
+    res.status(200).json({
+      found: result.rows.length > 0,
+      count: result.rows.length,
+      patients: result.rows
+    });
+
+  } catch (err) {
+    console.error('Error searching for patient:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/patient/:id - Get patient information with visits list (lightweight)
 router.get('/:id', authenticateToken, requireRole(['any']), async (req, res) => {
   // Support ETag for caching
