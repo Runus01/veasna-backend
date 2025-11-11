@@ -4,6 +4,54 @@ const router = express.Router();
 const db = require('../config/db');
 const { authenticateToken, requireRole } = require('../routes/auth');
 
+
+// GET /api/patient/search?name=... - Search for patient by name
+router.get('/search', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { name } = req.query;
+
+  if (!name || typeof name !== 'string' || name.trim().length === 0) {
+    return res.status(400).json({ error: 'Search name is required' });
+  }
+
+  const searchTerm = name.trim().toLowerCase();
+
+  try {
+    // Search by English name OR Khmer name (case-insensitive)
+    const searchQuery = `
+      SELECT 
+        id,
+        face_id,
+        location_id,
+        english_name,
+        khmer_name,
+        date_of_birth,
+        sex,
+        address,
+        phone_number,
+        last_updated_at,
+        created_at
+      FROM patients
+      WHERE 
+        LOWER(english_name) LIKE $1 OR 
+        LOWER(khmer_name) LIKE $1
+      ORDER BY last_updated_at DESC
+      LIMIT 10
+    `;
+
+    const result = await db.query(searchQuery, [`%${searchTerm}%`]);
+
+    res.status(200).json({
+      found: result.rows.length > 0,
+      count: result.rows.length,
+      patients: result.rows
+    });
+
+  } catch (err) {
+    console.error('Error searching for patient:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // GET /api/patient/:id - Get patient information with visits list (lightweight)
 router.get('/:id', authenticateToken, requireRole(['any']), async (req, res) => {
   // Support ETag for caching
@@ -85,6 +133,103 @@ router.get('/:id', authenticateToken, requireRole(['any']), async (req, res) => 
     res.status(200).json(response);
   } catch (err) {
     console.error('Error fetching patient data:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// PUT /api/patient/:id - Update patient information
+router.put('/:id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id } = req.params;
+  const last_updated_by = req.user.id;
+  
+  if (!id) {
+    return res.status(400).json({ error: 'Patient ID is required' });
+  }
+
+  const {
+    english_name,
+    khmer_name,
+    date_of_birth,
+    sex,
+    address,
+    phone_number
+  } = req.body;
+
+  try {
+    // Build update query dynamically based on provided fields
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (english_name !== undefined) {
+      updates.push(`english_name = $${paramCount++}`);
+      values.push(english_name);
+    }
+    if (khmer_name !== undefined) {
+      updates.push(`khmer_name = $${paramCount++}`);
+      values.push(khmer_name);
+    }
+    if (date_of_birth !== undefined) {
+      updates.push(`date_of_birth = $${paramCount++}`);
+      values.push(date_of_birth);
+    }
+    if (sex !== undefined) {
+      updates.push(`sex = $${paramCount++}`);
+      values.push(sex);
+    }
+    if (address !== undefined) {
+      updates.push(`address = $${paramCount++}`);
+      values.push(address);
+    }
+    if (phone_number !== undefined) {
+      updates.push(`phone_number = $${paramCount++}`);
+      values.push(phone_number);
+    }
+
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+
+    // Always update last_updated_by and last_updated_at
+    updates.push(`last_updated_by = $${paramCount++}`);
+    values.push(last_updated_by);
+    updates.push(`last_updated_at = NOW()`);
+
+    // Add patient ID as last parameter
+    values.push(id);
+
+    const updateQuery = `
+      UPDATE patients
+      SET ${updates.join(', ')}
+      WHERE id = $${paramCount}
+      RETURNING *
+    `;
+
+    const result = await db.query(updateQuery, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const updatedPatient = result.rows[0];
+
+    // Get location name for complete response
+    const patientWithLocation = await db.query(`
+      SELECT 
+        p.*,
+        l.name AS location_name
+      FROM patients p
+      LEFT JOIN locations l ON p.location_id = l.id
+      WHERE p.id = $1
+    `, [id]);
+
+    res.status(200).json({
+      message: 'Patient updated successfully',
+      patient: patientWithLocation.rows[0]
+    });
+
+  } catch (err) {
+    console.error('Error updating patient:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -308,6 +453,42 @@ router.get('/visit/:id', authenticateToken, requireRole(['any']), async (req, re
       console.error('Error fetching visit data:', err);
       res.status(500).json({ error: 'Internal server error' });
     }
-  });
+});
+
+// DELETE /api/patient/:id - Delete patient and all associated data
+router.delete('/:id', authenticateToken, requireRole(['any']), async (req, res) => {
+  const { id } = req.params;
+
+  if (!id) {
+    return res.status(400).json({ error: 'Patient ID is required' });
+  }
+
+  try {
+    // Check if patient exists
+    const checkQuery = 'SELECT id, english_name FROM patients WHERE id = $1';
+    const checkResult = await db.query(checkQuery, [id]);
+
+    if (checkResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
+    const patient = checkResult.rows[0];
+
+    // Delete patient (CASCADE will handle all related records)
+    const deleteQuery = 'DELETE FROM patients WHERE id = $1 RETURNING id';
+    const deleteResult = await db.query(deleteQuery, [id]);
+
+    console.log(`✅ Deleted patient ${id} (${patient.english_name}) and all associated data`);
+
+    res.status(200).json({
+      message: 'Patient and all associated records deleted successfully',
+      deleted_patient_id: deleteResult.rows[0].id
+    });
+
+  } catch (err) {
+    console.error('Error deleting patient:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 module.exports = router;
